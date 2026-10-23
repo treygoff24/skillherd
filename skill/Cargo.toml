@@ -1,0 +1,34 @@
+[package]
+name = "skillherd"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Serve one skill library to many coding-agent harnesses through links it can prove it created"
+license = "MIT"
+repository = "https://github.com/treygoff24/skillherd"
+publish = false
+
+[lib]
+name = "skillherd"
+path = "src/lib.rs"
+
+[[bin]]
+name = "skillherd"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = { version = "1", features = ["derive"] }
+thiserror = "2"
+walkdir = "2"
+fs2 = "0.4"
+libc = "0.2"
+sha2 = "0.10"
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"

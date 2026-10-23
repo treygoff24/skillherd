@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# skillherd-npx-shim: 1
+# npx — optional adapter for real npx. Also embedded by `skillherd npx`.
+# Only the package position can select skills. Unknown skills commands and
+# unsupported mutation syntax fail closed; read-only commands pass unchanged.
+# SKILLHERD_REAL_NPX overrides PATH discovery; SKILLHERD_BIN overrides the managed CLI.
+set -euo pipefail
+
+# The Rust adapter supplies global skill flags as an array before this script.
+if [ "$0" != 'skillherd npx' ]; then skill_prefix=(); fi
+SKILLHERD_BIN="${SKILLHERD_BIN:-skillherd}"
+usable_npx() {
+  local candidate="$1"
+  [ -f "$candidate" ] && [ -x "$candidate" ] || return 1
+  # Recognize both current and legacy copies, including at custom prefixes.
+  if head -c 256 "$candidate" | grep -F -x -q \
+    -e '# skillherd-npx-shim: 1' \
+    -e '# skill-cli-npx-shim: 1' \
+    -e '# npx — wrapper around the real npx so a pasted skills.sh command lands in the' \
+    -e '# npx — optional wrapper around the real npx. Also embedded by `skill npx`.'; then return 1; fi
+  return 0
+}
+real_npx() {
+  if [ -n "${SKILLHERD_REAL_NPX:-}" ]; then
+    usable_npx "$SKILLHERD_REAL_NPX" || return 1
+    printf '%s\n' "$SKILLHERD_REAL_NPX"; return 0
+  fi
+  local remaining="$PATH" dir candidate
+  while :; do
+    dir="${remaining%%:*}"
+    candidate="${dir:-.}/npx"
+    if usable_npx "$candidate"; then printf '%s\n' "$candidate"; return 0; fi
+    case "$remaining" in *:*) remaining="${remaining#*:}" ;; *) break ;; esac
+  done
+  return 1
+}
+pass_through() {
+  if [ "${SKILLHERD_WRAPPER_DRY_RUN:-0}" = 1 ]; then
+    printf 'npx wrapper: --dry-run is only supported for managed skills mutations\n' >&2
+    exit 2
+  fi
+  local real
+  real=$(real_npx) || { printf 'npx wrapper: no real npx found on PATH\n' >&2; exit 127; }
+  exec "$real" "$@"
+}
+refuse() { printf 'npx wrapper: %s\n' "$1" >&2; exit 2; }
+
+args=("$@")
+n=${#args[@]}
+i=0
+explicit_package=0
+npx_dry_run=0
+# npx options must precede its command. Do not search another command's args.
+while [ "$i" -lt "$n" ]; do
+  case "${args[$i]}" in
+    --) i=$((i + 1)); break ;;
+    --dry-run) npx_dry_run=1; i=$((i + 1)) ;;
+    -y|--yes|--no|--no-install|--install|--offline|--prefer-offline|--prefer-online|--quiet|--ignore-existing)
+      i=$((i + 1)) ;;
+    --cache|--registry|--userconfig|--prefix|--node-options)
+      [ "$((i + 1))" -lt "$n" ] || refuse "${args[$i]} requires a value"
+      i=$((i + 2)) ;;
+    --cache=*|--registry=*|--userconfig=*|--prefix=*|--node-options=*) i=$((i + 1)) ;;
+    --version|-v|--help|-h|-c|--call|--call=*) pass_through "$@" ;;
+    -p|--package)
+      i=$((i + 1))
+      [ "$i" -lt "$n" ] || refuse '--package requires a value'
+      case "${args[$i]}" in
+        skills|skills@*) refuse 'explicit --package skills syntax is unsupported; use npx skills add/update/remove directly' ;;
+      esac
+      explicit_package=1
+      i=$((i + 1)) ;;
+    --package=skills|--package=skills@*) refuse 'explicit --package skills syntax is unsupported; use npx skills add/update/remove directly' ;;
+    --package=*) explicit_package=1; i=$((i + 1)) ;;
+    -*) refuse "unsupported npx option ${args[$i]}; invoke real npx directly for this syntax" ;;
+    *) break ;;
+  esac
+done
+package="${args[$i]:-}"
+case "$package" in skills|skills@*) ;; *) pass_through "$@" ;; esac
+[ "$explicit_package" -eq 0 ] || refuse 'explicit --package syntax with a skills command is unsupported; use npx skills add/update/remove directly'
+sub_at=$((i + 1))
+verb="${args[$sub_at]:-}"
+case "$verb" in
+  find|search|list|ls|check|help|--help|-h|--version|-v|'') pass_through "$@" ;;
+  add|install|i|a) verb=install ;;
+  update|upgrade) verb=update ;;
+  remove|rm|uninstall) verb=remove ;;
+  *) refuse "unsupported skills command ${verb}; use skill install/update/remove directly" ;;
+esac
+[ "${npx_dry_run:-0}" -eq 0 ] || refuse 'put skill --dry-run before npx for managed skills mutations'
+# The managed importer pins its package; never silently discard a requested version.
+managed_package="${SKILLHERD_NPX_PKG:-skills@1.7.0}"
+case "$package" in
+  skills|"$managed_package") ;;
+  *) refuse "unsupported version $package; managed mutations require $managed_package" ;;
+esac
+command -v "$SKILLHERD_BIN" >/dev/null 2>&1 || {
+  printf 'npx wrapper: %s not on PATH; refusing a skills mutation outside the stage\n' "$SKILLHERD_BIN" >&2
+  exit 127
+}
+rewritten=()
+for ((k = sub_at + 1; k < n; k++)); do
+  tok="${args[$k]}"
+  case "$tok" in
+    --)
+      # The separator and everything after it are literal CLI arguments.
+      rewritten+=(--)
+      for ((j = k + 1; j < n; j++)); do rewritten+=("${args[$j]}"); done
+      break ;;
+    -g|--global|-y|--yes|--all|--copy|--full-depth) ;;
+    -a|--agent|-s|--skill)
+      [ "$((k + 1))" -lt "$n" ] && [ -n "${args[$((k + 1))]}" ] || refuse "$tok requires a value"
+      k=$((k + 1))
+      case "$tok" in -s|--skill) rewritten+=(--skill "${args[$k]}") ;; esac ;;
+    -a=*|--agent=*) ;;
+    -s=*|--skill=*)
+      [ -n "${tok#*=}" ] || refuse "$tok requires a value"
+      rewritten+=(--skill "${tok#*=}") ;;
+    -*) refuse "unsupported flag $tok; use skill install/update/remove directly" ;;
+    *) rewritten+=("$tok") ;;
+  esac
+done
+exec "$SKILLHERD_BIN" ${skill_prefix[@]+"${skill_prefix[@]}"} "$verb" ${rewritten[@]+"${rewritten[@]}"}

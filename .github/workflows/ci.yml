@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  gate:
+    name: gate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the stable Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+
+      - name: Gate (fmt, clippy, every test, release build)
+        run: bash tests/skill-gate.sh
+
+      - name: Acceptance against the release binary
+        run: SKIP_GATE=1 bash tests/acceptance.sh
+
+      - name: Shell test suites
+        run: |
+          rc=0
+          for suite in tests/*.test.sh; do
+            echo "== $suite =="
+            bash "$suite" || rc=1
+          done
+          exit "$rc"
+
+      - name: Shell syntax and shellcheck
+        run: bash tests/shell-check.sh
+
+  msrv:
+    name: build on Rust 1.88
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust 1.88
+        run: rustup toolchain install 1.88 --profile minimal
+
+      - name: Build every target
+        run: cargo +1.88 build --manifest-path skill/Cargo.toml --locked --all-targets
+
+  notices:
+    name: third-party notices up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Regenerate and compare
+        run: |
+          bash scripts/third-party-notices.sh > "$RUNNER_TEMP/THIRD-PARTY-NOTICES"
+          diff -u THIRD-PARTY-NOTICES "$RUNNER_TEMP/THIRD-PARTY-NOTICES"

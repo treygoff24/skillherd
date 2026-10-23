@@ -1,0 +1,13 @@
+# .globals/harnesses fixture for tests/acceptance.sh.
+# Columns: harness  tier  surface  variant-key  reads. The surface is a built-in
+# destination name (claude, codex, agents, grok, pi or cursor); exact legacy
+# aliases below are also accepted, not general placeholder expansion.
+# tier none: managed entries are removed and nothing is served there.
+
+claude   main  {claude_shared}/skills   claude   surface
+codex    main  {codex_home}/skills      codex    surface,agents_dir
+# the shared folder gets the universal copy only
+agents   lane  {agents_dir}             -        surface
+grok     none  {grok_home}/skills       -        surface,agents_dir
+pi       lane  {pi_skills}              pi       surface
+cursor   none  {cursor_skills}          -        surface,agents_dir

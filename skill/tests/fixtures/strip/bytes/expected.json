@@ -1,0 +1,377 @@
+{
+ "cases": {
+  "bom-before-frontmatter.md": {
+   "cell/-": {
+    "had_markers": true,
+    "ok_hex": "efbbbf2d2d2d0a6e616d653a20780a2d2d2d0a626f64790a"
+   },
+   "cell/claude": {
+    "had_markers": true,
+    "ok_hex": "efbbbf2d2d2d0a6e616d653a20780a430a2d2d2d0a626f64790a"
+   },
+   "cell/codex": {
+    "had_markers": true,
+    "ok_hex": "efbbbf2d2d2d0a6e616d653a20780a2d2d2d0a626f64790a"
+   },
+   "cell/lane": {
+    "had_markers": true,
+    "ok_hex": "efbbbf2d2d2d0a6e616d653a20780a2d2d2d0a626f64790a"
+   },
+   "mac/-": {
+    "had_markers": true,
+    "ok_hex": "efbbbf2d2d2d0a6e616d653a20780a2d2d2d0a626f64790a"
+   },
+   "mac/claude": {
+    "had_markers": true,
+    "ok_hex": "efbbbf2d2d2d0a6e616d653a20780a430a2d2d2d0a626f64790a"
+   },
+   "mac/codex": {
+    "had_markers": true,
+    "ok_hex": "efbbbf2d2d2d0a6e616d653a20780a2d2d2d0a626f64790a"
+   },
+   "mac/lane": {
+    "had_markers": true,
+    "ok_hex": "efbbbf2d2d2d0a6e616d653a20780a2d2d2d0a626f64790a"
+   }
+  },
+  "bom-before-open-marker.md": {
+   "cell/-": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "cell/claude": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "cell/codex": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "cell/lane": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "mac/-": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "mac/claude": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "mac/codex": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "mac/lane": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   }
+  },
+  "bom-only.md": {
+   "cell/-": {
+    "had_markers": false,
+    "ok_hex": "efbbbf"
+   },
+   "cell/claude": {
+    "had_markers": false,
+    "ok_hex": "efbbbf"
+   },
+   "cell/codex": {
+    "had_markers": false,
+    "ok_hex": "efbbbf"
+   },
+   "cell/lane": {
+    "had_markers": false,
+    "ok_hex": "efbbbf"
+   },
+   "mac/-": {
+    "had_markers": false,
+    "ok_hex": "efbbbf"
+   },
+   "mac/claude": {
+    "had_markers": false,
+    "ok_hex": "efbbbf"
+   },
+   "mac/codex": {
+    "had_markers": false,
+    "ok_hex": "efbbbf"
+   },
+   "mac/lane": {
+    "had_markers": false,
+    "ok_hex": "efbbbf"
+   }
+  },
+  "bom-then-markers.md": {
+   "cell/-": {
+    "had_markers": true,
+    "ok_hex": "efbbbf23205469746c650a0a43454c4c0a0a5441494c0a"
+   },
+   "cell/claude": {
+    "had_markers": true,
+    "ok_hex": "efbbbf23205469746c650a0a43454c4c0a0a5441494c0a"
+   },
+   "cell/codex": {
+    "had_markers": true,
+    "ok_hex": "efbbbf23205469746c650a0a43454c4c0a0a5441494c0a"
+   },
+   "cell/lane": {
+    "had_markers": true,
+    "ok_hex": "efbbbf23205469746c650a0a43454c4c0a0a5441494c0a"
+   },
+   "mac/-": {
+    "had_markers": true,
+    "ok_hex": "efbbbf23205469746c650a0a5441494c0a"
+   },
+   "mac/claude": {
+    "had_markers": true,
+    "ok_hex": "efbbbf23205469746c650a0a5441494c0a"
+   },
+   "mac/codex": {
+    "had_markers": true,
+    "ok_hex": "efbbbf23205469746c650a0a5441494c0a"
+   },
+   "mac/lane": {
+    "had_markers": true,
+    "ok_hex": "efbbbf23205469746c650a0a5441494c0a"
+   }
+  },
+  "control-bytes.md": {
+   "cell/-": {
+    "had_markers": true,
+    "ok_hex": "6100620a43454c4c0a003c212d2d206d61632d6f6e6c79202d2d3e0a4e4f542041204d41524b45520a"
+   },
+   "cell/claude": {
+    "had_markers": true,
+    "ok_hex": "6100620a43454c4c0a003c212d2d206d61632d6f6e6c79202d2d3e0a4e4f542041204d41524b45520a"
+   },
+   "cell/codex": {
+    "had_markers": true,
+    "ok_hex": "6100620a43454c4c0a003c212d2d206d61632d6f6e6c79202d2d3e0a4e4f542041204d41524b45520a"
+   },
+   "cell/lane": {
+    "had_markers": true,
+    "ok_hex": "6100620a43454c4c0a003c212d2d206d61632d6f6e6c79202d2d3e0a4e4f542041204d41524b45520a"
+   },
+   "mac/-": {
+    "had_markers": true,
+    "ok_hex": "6100620a003c212d2d206d61632d6f6e6c79202d2d3e0a4e4f542041204d41524b45520a"
+   },
+   "mac/claude": {
+    "had_markers": true,
+    "ok_hex": "6100620a003c212d2d206d61632d6f6e6c79202d2d3e0a4e4f542041204d41524b45520a"
+   },
+   "mac/codex": {
+    "had_markers": true,
+    "ok_hex": "6100620a003c212d2d206d61632d6f6e6c79202d2d3e0a4e4f542041204d41524b45520a"
+   },
+   "mac/lane": {
+    "had_markers": true,
+    "ok_hex": "6100620a003c212d2d206d61632d6f6e6c79202d2d3e0a4e4f542041204d41524b45520a"
+   }
+  },
+  "cr-only-line-ends.md": {
+   "cell/-": {
+    "had_markers": false,
+    "ok_hex": "746f700d3c212d2d206d61632d6f6e6c79202d2d3e0d4d41430d3c212d2d202f6d61632d6f6e6c79202d2d3e0d"
+   },
+   "cell/claude": {
+    "had_markers": false,
+    "ok_hex": "746f700d3c212d2d206d61632d6f6e6c79202d2d3e0d4d41430d3c212d2d202f6d61632d6f6e6c79202d2d3e0d"
+   },
+   "cell/codex": {
+    "had_markers": false,
+    "ok_hex": "746f700d3c212d2d206d61632d6f6e6c79202d2d3e0d4d41430d3c212d2d202f6d61632d6f6e6c79202d2d3e0d"
+   },
+   "cell/lane": {
+    "had_markers": false,
+    "ok_hex": "746f700d3c212d2d206d61632d6f6e6c79202d2d3e0d4d41430d3c212d2d202f6d61632d6f6e6c79202d2d3e0d"
+   },
+   "mac/-": {
+    "had_markers": false,
+    "ok_hex": "746f700d3c212d2d206d61632d6f6e6c79202d2d3e0d4d41430d3c212d2d202f6d61632d6f6e6c79202d2d3e0d"
+   },
+   "mac/claude": {
+    "had_markers": false,
+    "ok_hex": "746f700d3c212d2d206d61632d6f6e6c79202d2d3e0d4d41430d3c212d2d202f6d61632d6f6e6c79202d2d3e0d"
+   },
+   "mac/codex": {
+    "had_markers": false,
+    "ok_hex": "746f700d3c212d2d206d61632d6f6e6c79202d2d3e0d4d41430d3c212d2d202f6d61632d6f6e6c79202d2d3e0d"
+   },
+   "mac/lane": {
+    "had_markers": false,
+    "ok_hex": "746f700d3c212d2d206d61632d6f6e6c79202d2d3e0d4d41430d3c212d2d202f6d61632d6f6e6c79202d2d3e0d"
+   }
+  },
+  "crlf-seams.md": {
+   "cell/-": {
+    "had_markers": true,
+    "ok_hex": "410d0a0d0a0d0a200d0a0d0a420d0a"
+   },
+   "cell/claude": {
+    "had_markers": true,
+    "ok_hex": "410d0a0d0a0d0a430d0a0d0a200d0a0d0a420d0a"
+   },
+   "cell/codex": {
+    "had_markers": true,
+    "ok_hex": "410d0a0d0a0d0a200d0a0d0a420d0a"
+   },
+   "cell/lane": {
+    "had_markers": true,
+    "ok_hex": "410d0a0d0a0d0a200d0a0d0a420d0a"
+   },
+   "mac/-": {
+    "had_markers": true,
+    "ok_hex": "410d0a0d0a0d0a200d0a0d0a420d0a"
+   },
+   "mac/claude": {
+    "had_markers": true,
+    "ok_hex": "410d0a0d0a0d0a430d0a0d0a200d0a0d0a420d0a"
+   },
+   "mac/codex": {
+    "had_markers": true,
+    "ok_hex": "410d0a0d0a0d0a200d0a0d0a420d0a"
+   },
+   "mac/lane": {
+    "had_markers": true,
+    "ok_hex": "410d0a0d0a0d0a200d0a0d0a420d0a"
+   }
+  },
+  "invalid-utf8-content.md": {
+   "cell/-": {
+    "had_markers": true,
+    "ok_hex": "636166e920fffe0a656e6420f0288cbc0a"
+   },
+   "cell/claude": {
+    "had_markers": true,
+    "ok_hex": "636166e920fffe0a656e6420f0288cbc0a"
+   },
+   "cell/codex": {
+    "had_markers": true,
+    "ok_hex": "636166e920fffe0a636f64657820c3280a656e6420f0288cbc0a"
+   },
+   "cell/lane": {
+    "had_markers": true,
+    "ok_hex": "636166e920fffe0a656e6420f0288cbc0a"
+   },
+   "mac/-": {
+    "had_markers": true,
+    "ok_hex": "636166e920fffe0a6d61632080810a656e6420f0288cbc0a"
+   },
+   "mac/claude": {
+    "had_markers": true,
+    "ok_hex": "636166e920fffe0a6d61632080810a656e6420f0288cbc0a"
+   },
+   "mac/codex": {
+    "had_markers": true,
+    "ok_hex": "636166e920fffe0a6d61632080810a636f64657820c3280a656e6420f0288cbc0a"
+   },
+   "mac/lane": {
+    "had_markers": true,
+    "ok_hex": "636166e920fffe0a6d61632080810a656e6420f0288cbc0a"
+   }
+  },
+  "nbsp-before-marker.md": {
+   "cell/-": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "cell/claude": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "cell/codex": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "cell/lane": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "mac/-": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "mac/claude": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "mac/codex": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   },
+   "mac/lane": {
+    "error": {
+     "line": 3,
+     "reason": "<!-- /mac-only --> closes nothing"
+    }
+   }
+  },
+  "non-ascii-marker-name.md": {
+   "cell/-": {
+    "had_markers": true,
+    "ok_hex": "3c212d2d206de1632d6f6e6c79202d2d3e0a580a3c212d2d202f6de1632d6f6e6c79202d2d3e0a"
+   },
+   "cell/claude": {
+    "had_markers": true,
+    "ok_hex": "3c212d2d206de1632d6f6e6c79202d2d3e0a580a3c212d2d202f6de1632d6f6e6c79202d2d3e0a"
+   },
+   "cell/codex": {
+    "had_markers": true,
+    "ok_hex": "3c212d2d206de1632d6f6e6c79202d2d3e0a580a3c212d2d202f6de1632d6f6e6c79202d2d3e0a"
+   },
+   "cell/lane": {
+    "had_markers": true,
+    "ok_hex": "3c212d2d206de1632d6f6e6c79202d2d3e0a580a3c212d2d202f6de1632d6f6e6c79202d2d3e0a4c0a"
+   },
+   "mac/-": {
+    "had_markers": true,
+    "ok_hex": "3c212d2d206de1632d6f6e6c79202d2d3e0a580a3c212d2d202f6de1632d6f6e6c79202d2d3e0a"
+   },
+   "mac/claude": {
+    "had_markers": true,
+    "ok_hex": "3c212d2d206de1632d6f6e6c79202d2d3e0a580a3c212d2d202f6de1632d6f6e6c79202d2d3e0a"
+   },
+   "mac/codex": {
+    "had_markers": true,
+    "ok_hex": "3c212d2d206de1632d6f6e6c79202d2d3e0a580a3c212d2d202f6de1632d6f6e6c79202d2d3e0a"
+   },
+   "mac/lane": {
+    "had_markers": true,
+    "ok_hex": "3c212d2d206de1632d6f6e6c79202d2d3e0a580a3c212d2d202f6de1632d6f6e6c79202d2d3e0a4c0a"
+   }
+  }
+ },
+ "generated_by": "the Python bin/skill-render strip_bytes (RENDER_VERSION 2) via generate.py"
+}

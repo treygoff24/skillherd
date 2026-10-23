@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# npx — wrapper around the real npx so a pasted skills.sh command lands in the
+# pool through `skill`. It is intentionally boring: every invocation that is not
+# `npx skills add|update|remove …` passes through unchanged.
+#
+#   npx skills add <source> [--skill N]…   → skill install <source> [--skill N]…
+#   npx skills update [names…]             → skill update [names…]
+#   npx skills remove <names…>             → skill remove <names…>
+#
+# skills.sh flags that only steer the raw installer are dropped: -g/--global
+# (the pool is global), -y/--yes, -a/--agent X (the stage installs as
+# universal), --all, --copy, --full-depth. Unsupported flags are refused:
+# a skills mutator must never fall back to npx against the live HOME.
+#
+# Env: SKILLS_REAL_NPX (default /opt/homebrew/bin/npx on darwin, else the first
+# npx on PATH that is not this shim); SKILL_BIN (default `skill` on PATH).
+set -euo pipefail
+
+self=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")
+usable_npx() {
+  local candidate="$1"
+  [ -x "$candidate" ] || return 1
+  [ "$candidate" -ef "$self" ] && return 1
+  # Copies installed at another prefix are wrappers too, not upstream npx.
+  if head -c 256 "$candidate" | grep -q 'wrapper around the real npx'; then return 1; fi
+  return 0
+}
+real_npx() {
+  if [ -n "${SKILLS_REAL_NPX:-}" ]; then
+    usable_npx "$SKILLS_REAL_NPX" || return 1
+    printf '%s\n' "$SKILLS_REAL_NPX"; return 0
+  fi
+  if usable_npx /opt/homebrew/bin/npx; then printf '%s\n' /opt/homebrew/bin/npx; return 0; fi
+  local IFS=: dir cand
+  for dir in $PATH; do
+    cand="$dir/npx"
+    usable_npx "$cand" || continue
+    printf '%s\n' "$cand"; return 0
+  done
+  return 1
+}
+SKILL_BIN="${SKILL_BIN:-skill}"
+
+args=("$@")
+n=${#args[@]}
+sub_at=-1; verb=""; ambiguous=0
+for ((i = 0; i < n; i++)); do
+  case "${args[$i]}" in
+    skills|skills@*)
+      # Look past all intervening tokens for a mutator. An npm package flag
+      # or a skills flag's value must not hide it and escape to live-HOME npx.
+      for ((j = i + 1; j < n; j++)); do
+        case "${args[$j]}" in
+          add|install|i|a) verb=install ;;
+          update|upgrade) verb=update ;;
+          remove|rm|uninstall) verb=remove ;;
+          *) continue ;;
+        esac
+        sub_at=$j
+        [ "$j" -eq "$((i + 1))" ] || ambiguous=1
+        break 2
+      done
+      ;;
+  esac
+done
+
+if [ "$ambiguous" -eq 1 ]; then
+  printf 'npx wrapper: ambiguous skills mutation; use skill install/update/remove directly\n' >&2
+  exit 2
+fi
+
+if [ -z "$verb" ]; then
+  REAL_NPX=$(real_npx) || { printf 'npx wrapper: no real npx found on PATH\n' >&2; exit 127; }
+  exec "$REAL_NPX" "$@"
+fi
+
+if ! command -v "$SKILL_BIN" >/dev/null 2>&1; then
+  printf 'npx wrapper: %s not on PATH; refusing a skills mutation outside the stage\n' "$SKILL_BIN" >&2
+  exit 127
+fi
+
+# Translate the tail after the verb. Positionals and --skill survive; steering
+# flags drop; anything else is refused instead of escaping the stage.
+rewritten=()
+raw=0
+for ((k = sub_at + 1; k < n; k++)); do
+  tok="${args[$k]}"
+  case "$tok" in
+    -g|--global|-y|--yes|--all|--copy|--full-depth) ;;
+    -a|--agent) k=$((k + 1)) ;;
+    -a=*|--agent=*) ;;
+    -s|--skill) k=$((k + 1)); rewritten+=(--skill "${args[$k]:-}") ;;
+    -s=*|--skill=*) rewritten+=(--skill "${tok#*=}") ;;
+    --) ;;
+    -*) raw=1; break ;;
+    *) rewritten+=("$tok") ;;
+  esac
+done
+
+if [ "$raw" -eq 1 ]; then
+  printf 'npx wrapper: unsupported flag %s; use skill install/update/remove directly\n' "$tok" >&2
+  exit 2
+fi
+
+exec "$SKILL_BIN" "$verb" ${rewritten[@]+"${rewritten[@]}"}

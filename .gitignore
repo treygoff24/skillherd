@@ -1,0 +1,19 @@
+# Claude Code (user-specific, not shared)
+.claude/settings.local.json
+
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor backups
+*.bak
+*.bak-*
+
+# Rust build output
+skill/target/

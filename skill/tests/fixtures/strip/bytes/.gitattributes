@@ -1,0 +1,3 @@
+# Raw-byte fixtures: never normalise line ends or encodings.
+*.md -text -diff
+expected.json -diff
