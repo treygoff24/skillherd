@@ -4,7 +4,8 @@
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-TEST_PYTHON=$(command -v python3)
+# Resolve the interpreter before the scratch HOME/PATH hide version-manager config.
+TEST_PYTHON=$(python3 -c 'import sys; print(sys.executable)')
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/skillherd-install-test.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home-env"
@@ -218,7 +219,7 @@ grep -q '^Usage:' "$TMP/help.out" && grep -q -- '--with-npx-shim' "$TMP/help.out
   && grep -q 'cargo clean' "$TMP/help.out" && ! grep -q '0755\|mid-rebase' "$TMP/help.out" \
   && ok "help shows usage and build-cache cleanup, not internal comments" || bad "help is not user-facing"
 
-for name in skillherd; do
+name=skillherd
   for kind in regular symlink path; do
     P="$TMP/foreign-$name-$kind"
     mkdir -p "$P/bin" "$TMP/path-$name"
@@ -239,7 +240,6 @@ for name in skillherd; do
       && ok "foreign $kind $name is preserved before publication" || bad "foreign $kind $name guard failed: $(cat "$TMP/guard.out")"
     if [ "$kind" = path ]; then rm -f "$candidate"; fi
   done
-done
 
 P="$TMP/owned-upgrade"
 "$INSTALL" --prefix "$P" > "$TMP/upgrade.out" 2>&1
@@ -398,8 +398,10 @@ try:
 except subprocess.TimeoutExpired:
     sys.exit(124)
 ' "$ROOT/bin/npx" --version > "$TMP/self-skip.out" 2>&1
-[ $? -eq 0 ] && [ "$(cat "$TMP/self-skip.out")" = $'raw\n<--version>' ] \
-  && ok "wrapper copy on PATH skipped under timeout" || bad "wrapper self-skip failed"
+self_skip_rc=$?
+[ "$self_skip_rc" -eq 0 ] && [ "$(cat "$TMP/self-skip.out")" = $'raw\n<--version>' ] \
+  && ok "wrapper copy on PATH skipped under timeout" \
+  || bad "wrapper self-skip failed (exit $self_skip_rc): $(cat "$TMP/self-skip.out")"
 SKILLHERD_NPX_PKG=skills@2.0.0 shim_check "configured pin routes" $'managed\n<install>\n<repo>' skills@2.0.0 add repo
 skill_prefix=INJECTED shim_check "environment cannot inject managed prefix" $'managed\n<install>\n<repo>' skills add repo
 SKILLHERD_BIN="$TMP/skill-spy" SKILLHERD_REAL_NPX="$TMP/real-first/npx" "$ROOT/bin/npx" --dry-run skills add repo > "$TMP/npm-dry.out" 2> "$TMP/npm-dry.err"

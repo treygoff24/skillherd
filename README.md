@@ -403,7 +403,7 @@ What you are trusting:
 | --- | --- |
 | A skill is missing from a harness | `skillherd info NAME` shows its tiers and which harnesses see it; `skillherd list --harness claude` and `skillherd doctor` show the rest. Check the library and tier. |
 | `foreign_shadow` or a foreign entry | Something the tool did not make holds that name in a harness folder. Inspect it, then move or remove it yourself; the tool will not. |
-| `install.sh` refuses a name collision | Another `skillherd` is on your `PATH` or at the destination. Move it, or install with `--prefix` elsewhere. |
+| `install.sh` refuses a name collision | If the destination is occupied, choose another `--prefix`. If a foreign `skillherd` is anywhere on `PATH`, a new prefix alone does not help: inspect it, then move it or run the installer with a `PATH` that excludes it. Keep Cargo and build tools reachable. |
 | `sync` refuses to pull | Resolve the library's local changes or divergent history yourself, then `skillherd sync` again. |
 | `local_edit_refused` on an import | Compare the copies, then rerun with `--adopt NAME` (take upstream) or `--keep NAME` (keep yours). An interrupted replacement may need `skillherd reconcile --restore NAME`. |
 | A private source fails to authenticate | Rerun the command with `SKILLHERD_NPX_CREDENTIALS=1`. |
