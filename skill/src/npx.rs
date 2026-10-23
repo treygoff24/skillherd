@@ -619,11 +619,15 @@ pub fn prepare_stage(paths: &Paths) -> Result<Stage> {
     copy_file_if_exists(&paths.lock, &stage.lock())?;
     fs::create_dir(stage.home().join("work"))
         .map_err(|err| Error::io("creating the isolated npx working directory", &err))?;
-    crate::fsx::atomic_write(
-        &stage.home().join("npmrc"),
-        b"# Controlled config: registry/proxy/CA overrides come from the operator environment.\n",
-    )
-    .map_err(|err| Error::io("writing the isolated npm configuration", &err))?;
+    // npm refuses to load one file as both user and global config, so each
+    // role gets its own controlled file.
+    for name in ["npmrc", "npmrc-global"] {
+        crate::fsx::atomic_write(
+            &stage.home().join(name),
+            b"# Controlled config: registry/proxy/CA overrides come from the operator environment.\n",
+        )
+        .map_err(|err| Error::io("writing the isolated npm configuration", &err))?;
+    }
     Ok(stage)
 }
 
@@ -815,7 +819,7 @@ pub fn run(paths: &Paths, verb: &Verb) -> Result<NpxRun> {
         .env("npm_config_cache", &cache)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("npm_config_userconfig", userconfig)
-        .env("npm_config_globalconfig", home.join("npmrc"))
+        .env("npm_config_globalconfig", home.join("npmrc-global"))
         .env("CI", "1");
     for key in ["LANG", "LC_ALL", "TERM", "TMPDIR"] {
         if let Some(value) = std::env::var_os(key) {

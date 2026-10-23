@@ -3720,7 +3720,9 @@ exit 19
     );
     assert_eq!(Path::new(lines[1]), run);
     assert_eq!(Path::new(lines[2]), run.join("npmrc"));
-    assert_eq!(Path::new(lines[3]), run.join("npmrc"));
+    // Current npm refuses one file loaded as both user and global config.
+    assert_eq!(Path::new(lines[3]), run.join("npmrc-global"));
+    assert!(run.join("npmrc-global").is_file());
     assert_eq!(&lines[4..6], &["1", "1"]);
     assert!(
         lines[6..11].iter().all(|line| *line == "unset"),
