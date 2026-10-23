@@ -8,25 +8,40 @@
 //! harness keys (`-`, `claude`, `codex`, `lane`): the stripped bytes and
 //! whether markers were seen, or the error line and reason. The port must
 //! reproduce every one of the 2,624 outputs exactly.
+//!
+//! The Python tool named its Linux machine `cell`; this one names it `linux`
+//! and treats `cell` as an ordinary word. The fixtures stay as recorded, and
+//! [`renamed`] reads every `cell-only` in them (inputs, outputs and error
+//! reasons) as `linux-only`. The grammar treats every machine name alike, so
+//! the renamed record is what the Python tool would have produced.
 
 use serde_json::Value;
 
 use skillherd::model::Platform;
 use skillherd::strip::strip_bytes;
 
+/// The fixtures' old machine name, read as the current one.
+fn renamed(text: &str) -> String {
+    text.replace("cell-only", "linux-only")
+}
+
 #[test]
-fn linux_fences_and_legacy_cell_fences_have_the_same_selection() {
-    for name in ["linux", "cell"] {
-        let source =
-            format!("before\n<!-- {name}-only -->\nlinux content\n<!-- /{name}-only -->\nafter\n");
-        let linux = strip_bytes(source.as_bytes(), Platform::Linux, None).unwrap();
-        assert!(
-            linux.had_markers,
-            "{name} must be a recognized machine fence"
-        );
-        assert_eq!(linux.bytes, b"before\nlinux content\nafter\n");
-        let mac = strip_bytes(source.as_bytes(), Platform::Mac, None).unwrap();
-        assert_eq!(mac.bytes, b"before\nafter\n");
+fn linux_fences_select_linux_and_cell_is_ordinary_text() {
+    let source = "before\n<!-- linux-only -->\nlinux content\n<!-- /linux-only -->\nafter\n";
+    let linux = strip_bytes(source.as_bytes(), Platform::Linux, None).unwrap();
+    assert!(
+        linux.had_markers,
+        "linux must be a recognized machine fence"
+    );
+    assert_eq!(linux.bytes, b"before\nlinux content\nafter\n");
+    let mac = strip_bytes(source.as_bytes(), Platform::Mac, None).unwrap();
+    assert_eq!(mac.bytes, b"before\nafter\n");
+
+    let old = "before\n<!-- cell-only -->\ntext\n<!-- /cell-only -->\nafter\n";
+    for keep in [Platform::Linux, Platform::Mac] {
+        let stripped = strip_bytes(old.as_bytes(), keep, None).unwrap();
+        assert!(!stripped.had_markers, "cell is not a machine name");
+        assert_eq!(stripped.bytes, old.as_bytes());
     }
 }
 
@@ -46,7 +61,8 @@ fn the_port_reproduces_every_python_output_in_the_corpus() {
     let mut mismatches: Vec<String> = Vec::new();
     for case in cases {
         let name = case["name"].as_str().unwrap();
-        let input = case["input"].as_str().unwrap().as_bytes();
+        let input = renamed(case["input"].as_str().unwrap());
+        let input = input.as_bytes();
         for (key, want) in case["outputs"].as_object().unwrap() {
             let (keep, harness) = key.split_once('/').unwrap();
             let keep = match keep {
@@ -60,7 +76,7 @@ fn the_port_reproduces_every_python_output_in_the_corpus() {
             match (&got, want.get("ok"), want.get("error")) {
                 (Ok(stripped), Some(bytes), None) => {
                     fenced += usize::from(stripped.had_markers);
-                    if stripped.bytes != bytes.as_str().unwrap().as_bytes()
+                    if stripped.bytes != renamed(bytes.as_str().unwrap()).as_bytes()
                         || stripped.had_markers != want["had_markers"].as_bool().unwrap()
                     {
                         mismatches.push(format!(
@@ -74,7 +90,7 @@ fn the_port_reproduces_every_python_output_in_the_corpus() {
                 (Err(error), None, Some(expected)) => {
                     errors += 1;
                     if error.line as u64 != expected["line"].as_u64().unwrap()
-                        || error.reason != expected["reason"].as_str().unwrap()
+                        || error.reason != renamed(expected["reason"].as_str().unwrap())
                     {
                         mismatches.push(format!("{name} {key}: got {error}, want {expected}"));
                     }
@@ -124,7 +140,7 @@ fn the_port_reproduces_python_on_raw_byte_documents() {
     let mut mismatches = Vec::new();
     let mut checked = 0;
     for (name, outputs) in cases {
-        let input = std::fs::read(dir.join(name)).unwrap();
+        let input = rename_bytes(&std::fs::read(dir.join(name)).unwrap());
         for (key, want) in outputs.as_object().unwrap() {
             let (keep, harness) = key.split_once('/').unwrap();
             let keep = match keep {
@@ -137,12 +153,12 @@ fn the_port_reproduces_python_on_raw_byte_documents() {
             checked += 1;
             let same = match (&got, want.get("ok_hex"), want.get("error")) {
                 (Ok(stripped), Some(hex), None) => {
-                    to_hex(&stripped.bytes) == hex.as_str().unwrap()
+                    stripped.bytes == rename_bytes(&from_hex(hex.as_str().unwrap()))
                         && stripped.had_markers == want["had_markers"].as_bool().unwrap()
                 }
                 (Err(error), None, Some(expected)) => {
                     error.line as u64 == expected["line"].as_u64().unwrap()
-                        && error.reason == expected["reason"].as_str().unwrap()
+                        && error.reason == renamed(expected["reason"].as_str().unwrap())
                 }
                 _ => false,
             };
@@ -155,8 +171,28 @@ fn the_port_reproduces_python_on_raw_byte_documents() {
     assert_eq!(checked, inputs.len() * 8);
 }
 
-fn to_hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+fn from_hex(hex: &str) -> Vec<u8> {
+    (0..hex.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(&hex[at..at + 2], 16).unwrap())
+        .collect()
+}
+
+/// [`renamed`] for raw bytes, which need not be UTF-8.
+fn rename_bytes(bytes: &[u8]) -> Vec<u8> {
+    let (old, new) = (b"cell-only", b"linux-only");
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at..].starts_with(old) {
+            out.extend_from_slice(new);
+            at += old.len();
+        } else {
+            out.push(bytes[at]);
+            at += 1;
+        }
+    }
+    out
 }
 
 // ---- `skillherd strip`, the standalone command ------------------------------
@@ -167,8 +203,8 @@ use std::path::Path;
 
 use tempfile::TempDir;
 
-const FENCED: &str = "# fenced\n\nNEUTRAL-BEFORE line.\n\n<!-- mac-only -->\nMAC-ONLY-TEXT line.\n<!-- /mac-only -->\n\n  <!-- cell-only -->\nCELL-ONLY-TEXT line.\n  <!-- /cell-only -->\n\n<!-- claude-only -->\nCLAUDE-TEXT line.\n<!-- /claude-only -->\n\nNEUTRAL-AFTER line.\n";
-const NESTED: &str = "# nested\n\n<!-- cell-only -->\none\n<!-- mac-only -->\ntwo\n<!-- /mac-only -->\n<!-- /cell-only -->\n";
+const FENCED: &str = "# fenced\n\nNEUTRAL-BEFORE line.\n\n<!-- mac-only -->\nMAC-ONLY-TEXT line.\n<!-- /mac-only -->\n\n  <!-- linux-only -->\nLINUX-ONLY-TEXT line.\n  <!-- /linux-only -->\n\n<!-- claude-only -->\nCLAUDE-TEXT line.\n<!-- /claude-only -->\n\nNEUTRAL-AFTER line.\n";
+const NESTED: &str = "# nested\n\n<!-- linux-only -->\none\n<!-- mac-only -->\ntwo\n<!-- /mac-only -->\n<!-- /linux-only -->\n";
 
 fn strip_cmd(home: &Path, args: &[&str]) -> (i32, Value) {
     let output = assert_cmd::Command::cargo_bin("skillherd")
@@ -238,7 +274,7 @@ fn strip_in_place_rewrites_and_keeps_the_mode() {
         home.path(),
         &[
             "--keep",
-            "cell",
+            "linux",
             "--harness",
             "claude",
             "-i",
@@ -250,7 +286,7 @@ fn strip_in_place_rewrites_and_keeps_the_mode() {
     assert!(envelope["data"]["files"][0].get("content").is_none());
     assert_eq!(
         fs::read_to_string(&file).unwrap(),
-        "# fenced\n\nNEUTRAL-BEFORE line.\n\nCELL-ONLY-TEXT line.\n\nCLAUDE-TEXT line.\n\nNEUTRAL-AFTER line.\n"
+        "# fenced\n\nNEUTRAL-BEFORE line.\n\nLINUX-ONLY-TEXT line.\n\nCLAUDE-TEXT line.\n\nNEUTRAL-AFTER line.\n"
     );
     assert_eq!(
         fs::metadata(&file).unwrap().permissions().mode() & 0o7777,
@@ -336,7 +372,7 @@ fn a_malformed_file_fails_strip_and_writes_nothing() {
         .as_str()
         .unwrap();
     assert!(
-        message.ends_with("line 5: <!-- mac-only --> opened while <!-- cell-only --> block from line 3 is still open (nesting is not allowed)"),
+        message.ends_with("line 5: <!-- mac-only --> opened while <!-- linux-only --> block from line 3 is still open (nesting is not allowed)"),
         "{message}"
     );
     assert_eq!(

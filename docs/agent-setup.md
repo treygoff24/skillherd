@@ -49,6 +49,7 @@ cargo --version
 cc --version              # a C compiler and linker
 git --version
 bash --version
+python3 --version         # this guide uses Python 3 to read JSON; the CLI itself does not need it
 node --version; npx --version   # optional: only for importing upstream skills
 ```
 
@@ -89,7 +90,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 Pick another clone location if the user keeps source code elsewhere; keep
 the clone, since upgrades come from it. `install.sh` builds a release binary
-(about a minute on a fresh machine) and copies it to
+and copies it to
 `~/.local/bin/skillherd`. It does not edit shell files, create a library or
 install the `npx` shim. It refuses to overwrite a `skillherd` it did not
 install, and refuses while another `skillherd` is on `PATH`; report either
@@ -109,7 +110,7 @@ https://github.com/treygoff24/skillherd skillherd` installs into
 
 ```bash
 command -v skillherd            # prints ~/.local/bin/skillherd (expanded)
-skillherd --version             # prints: skillherd 0.1.0
+skillherd --version             # prints: skillherd 0.1.1
 skillherd doctor --json         # prints {"ok":true,...}
 bash ~/src/skillherd/install.sh --verify   # prints "same …/skillherd", exit 0
 ```
@@ -154,16 +155,26 @@ You may decide these yourself, and tell the user what you chose:
 
 ## 6. Configure
 
-Apply only the choices the user made.
+Apply only the choices the user made. Resolve the library path once before
+using `$LIB` in this guide; the JSON parser needs Python 3:
 
-**Another library folder.** Record it in the configuration file:
+```bash
+LIB="$(skillherd list --all --json | python3 -c 'import json, sys; print(json.load(sys.stdin)["meta"]["paths"]["library"])')"
+test -n "$LIB" && printf 'Library: %s\n' "$LIB"
+```
+
+After changing the library configuration, run those two commands again.
+Keep existing config keys when editing; the examples below are complete
+files only for a fresh install.
+
+**Another library folder.** Merge this key into the existing configuration, preserving other settings. On a fresh install, create the file:
 
 ```bash
 mkdir -p ~/.config/skillherd
 printf '{ "library": "~/my-skills" }\n' > ~/.config/skillherd/config.json
 ```
 
-**A Git library** (the repository already exists; you are not creating one):
+**A Git library** (the repository already exists; you are not creating one). Merge these keys into an existing config; use this complete file only when none exists:
 
 ```bash
 mkdir -p ~/.config/skillherd
@@ -180,11 +191,13 @@ skillherd sync
 fast-forward only. It refuses if the folder exists but is not a clone of that
 remote. Skills must sit at the top level of the repository.
 
-**Stop serving a harness** (pi in this example): write the whole harness
-table, since the file replaces the built-in one.
+**Stop serving a harness** (pi in this example): edit the existing harness
+table, preserving its other customizations. For a new table, copy the whole
+built-in table below and change pi to `none`. The file replaces the built-in
+one. The `LIB` commands below use Python 3 to parse the JSON path safely.
 
 ```bash
-LIB="$(skillherd list --all --pretty | sed -n 's/^ *"library": "\(.*\)",$/\1/p')"
+LIB="$(skillherd list --all --json | python3 -c 'import json, sys; print(json.load(sys.stdin)["meta"]["paths"]["library"])')"
 mkdir -p "$LIB/.globals"
 cat > "$LIB/.globals/harnesses" <<'EOF'
 # harness  tier  surface  variant-key  reads
@@ -207,10 +220,13 @@ bash ~/src/skillherd/install.sh --with-npx-shim
 ```
 
 **Move a hand-made skill into the library** (only with the user's yes, and
-only for a real folder, not a link):
+only for a real folder, not a link). Run these one at a time; if the
+destination exists or the move fails, stop and compare the two copies before
+activating anything:
 
 ```bash
-mv ~/.claude/skills/NAME "$LIB/NAME"
+mkdir -p "$LIB"
+test ! -e "$LIB/NAME" && test ! -L "$LIB/NAME" && mv ~/.claude/skills/NAME "$LIB/NAME"
 skillherd on NAME
 echo NAME >> "$LIB/.globals/house"
 ```
@@ -226,12 +242,24 @@ need the user's yes).
 ## 7. First real run
 
 Serve one skill and watch it arrive. If the user agreed to turn on the skill
-this repository ships, copy it into the library:
+this repository ships, copy it into the library.
+
+If the destination already existed, inspect its `SKILL.md` before the
+activation commands. Preserve local edits and merge the new instructions
+into that folder; copying a directory over it nests another directory and
+leaves the old skill active. If replacement is wanted, move the old folder
+to an unused backup path first, then copy the new one into the now-vacant
+path. Keep the backup until the new skill is verified.
+
 
 ```bash
-LIB="$(skillherd list --all --pretty | sed -n 's/^ *"library": "\(.*\)",$/\1/p')"
+LIB="$(skillherd list --all --json | python3 -c 'import json, sys; print(json.load(sys.stdin)["meta"]["paths"]["library"])')"
 mkdir -p "$LIB"
-cp -R ~/src/skillherd/skills/skillherd "$LIB/skillherd"
+if [ -e "$LIB/skillherd" ] || [ -L "$LIB/skillherd" ]; then
+  printf '%s\n' 'Existing skill: compare with ~/src/skillherd/skills/skillherd before updating.'
+else
+  cp -R ~/src/skillherd/skills/skillherd "$LIB/skillherd"
+fi
 skillherd --dry-run on skillherd
 skillherd on skillherd
 ls -l ~/.claude/skills/skillherd ~/.codex/skills/skillherd
@@ -240,7 +268,7 @@ skillherd info skillherd
 
 The `ls` shows two links into the library, and `info` shows
 `"visible_in": ["claude", "codex"]`. This copy does not follow upstream; after
-upgrading the clone, copy it again. Once `npx` is available and the user
+upgrading the clone, compare and merge or replace it using that same backup procedure. Once `npx` is available and the user
 agrees to an upstream import, `skillherd install treygoff24/skillherd --skill
 skillherd` tracks it instead, so `skillherd update` refreshes it.
 
@@ -274,12 +302,14 @@ git -C ~/src/skillherd pull --ff-only
 bash ~/src/skillherd/install.sh
 ```
 
-Uninstall, with the user's yes. The first two commands remove every link and
-copy `skillherd` made and nothing else:
+Uninstall, with the user's yes. Save the active policy, then render without it
+to remove managed links and copies. If the backup name exists, choose another
+unused name before proceeding; if no policy exists, skip the move. Run the
+commands one at a time and stop on any failure:
 
 ```bash
-LIB="$(skillherd list --all --pretty | sed -n 's/^ *"library": "\(.*\)",$/\1/p')"
-mv "$LIB/.globals/sets" ~/skillherd-sets.saved
+LIB="$(skillherd list --all --json | python3 -c 'import json, sys; print(json.load(sys.stdin)["meta"]["paths"]["library"])')"
+test ! -e "$HOME/skillherd-sets.saved" && mv "$LIB/.globals/sets" "$HOME/skillherd-sets.saved"
 skillherd render
 rm -f ~/.local/bin/skillherd
 rm -rf ~/.local/share/skillherd ~/.config/skillherd ~/.local/state/skillherd ~/.cache/skillherd

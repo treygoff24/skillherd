@@ -1,6 +1,6 @@
 [package]
 name = "skillherd"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.88"
 description = "Serve one skill library to many coding-agent harnesses through links it can prove it created"

@@ -408,7 +408,7 @@ fn parse_raw_row(raw: &str, line: usize) -> Option<SetRow> {
             "main" => row.main = true,
             "lane" => row.lane = true,
             "!mac" => push_platform(&mut row.not_platform, Platform::Mac),
-            "!linux" | "!cell" => push_platform(&mut row.not_platform, Platform::Linux),
+            "!linux" => push_platform(&mut row.not_platform, Platform::Linux),
             _ => match token.split_once(':') {
                 Some(("only", harness)) => row.only.push(canonical_harness(harness)),
                 Some(("not", harness)) => row.not.push(canonical_harness(harness)),
@@ -451,7 +451,7 @@ fn parse_sets(raw_lines: &[String], harnesses: &[HarnessRow]) -> Result<Vec<SetR
                 "main" => row.main = true,
                 "lane" => row.lane = true,
                 "!mac" => push_platform(&mut row.not_platform, Platform::Mac),
-                "!linux" | "!cell" => push_platform(&mut row.not_platform, Platform::Linux),
+                "!linux" => push_platform(&mut row.not_platform, Platform::Linux),
                 _ => {
                     if let Some(reference) = token.strip_prefix("only:") {
                         row.only
@@ -721,7 +721,7 @@ fn policy_bad_token(token: &str, line: usize, message: String) -> Error {
         message,
         details: json!({ "token": token, "line": line }),
         suggested_fix: Some(
-            "a sets row is `name token…` with tokens `main`, `lane`, `!mac`, `!linux` (legacy `!cell`), `only:<harness>` and `not:<harness>`"
+            "a sets row is `name token…` with tokens `main`, `lane`, `!mac`, `!linux`, `only:<harness>` and `not:<harness>`"
                 .to_string(),
         ),
     }

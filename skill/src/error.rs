@@ -604,7 +604,7 @@ impl Error {
             message: format!("unknown policy token {token:?} on sets line {line}"),
             details: json!({ "token": token, "line": line }),
             suggested_fix: Some(
-                "tokens are `main`, `lane`, `!mac`, `!linux` (legacy `!cell`), `only:<harness>` and `not:<harness>`"
+                "tokens are `main`, `lane`, `!mac`, `!linux`, `only:<harness>` and `not:<harness>`"
                     .into(),
             ),
         }

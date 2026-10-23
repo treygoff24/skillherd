@@ -8,171 +8,94 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 
 #[test]
-fn doctor_reports_legacy_config_without_loading_or_moving_it() {
-    for xdg in [false, true] {
-        let s = Sandbox::new();
-        let root = if xdg {
-            s.home().join("config-root")
-        } else {
-            s.home().join(".config")
-        };
-        let old = root.join("skill");
-        fs::create_dir_all(&old).unwrap();
-        // Invalid JSON proves the old configuration is not read as fallback.
-        fs::write(old.join("config.json"), "not json").unwrap();
-        let doctor = || {
-            let mut cmd = s.cmd();
-            if xdg {
-                cmd.env("XDG_CONFIG_HOME", &root);
-            }
-            ok(cmd.arg("doctor").output().unwrap())
-        };
-        let report = doctor();
-        let findings = report["data"]["findings"].as_array().unwrap();
-        let migration = findings
-            .iter()
-            .find(|f| f["code"] == "legacy_config")
-            .expect("legacy config migration finding");
-        assert_eq!(migration["severity"], "info");
-        assert_eq!(migration["fixable"], false);
-        assert_eq!(migration["path"], old.to_str().unwrap());
-        assert!(migration["message"].as_str().unwrap().contains("skillherd"));
-        assert_eq!(
-            fs::read_to_string(old.join("config.json")).unwrap(),
-            "not json"
-        );
-        assert!(!root.join("skillherd").exists());
-        fs::create_dir_all(root.join("skillherd")).unwrap();
-        assert!(
-            !doctor()["data"]["findings"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|f| f["code"] == "legacy_config")
-        );
-    }
-}
-
-#[test]
-fn linux_platform_and_legacy_cell_inputs_emit_canonical_linux() {
+fn linux_is_the_only_name_for_the_linux_platform() {
     let s = Sandbox::new();
-    for platform in ["linux", "cell"] {
-        let report = ok(s
-            .cmd()
-            .env("SKILLHERD_PLATFORM", platform)
+    let report = ok(s
+        .cmd()
+        .env("SKILLHERD_PLATFORM", "linux")
+        .arg("list")
+        .output()
+        .unwrap());
+    assert_eq!(report["meta"]["paths"]["platform"], "linux");
+    let refused = error(
+        s.cmd()
+            .env("SKILLHERD_PLATFORM", "cell")
             .arg("list")
             .output()
-            .unwrap());
-        assert_eq!(report["meta"]["paths"]["platform"], "linux");
-    }
-    for platform in ["linux", "cell"] {
-        assert_eq!(
-            serde_json::from_value::<skillherd::model::Platform>(json!(platform)).unwrap(),
-            skillherd::model::Platform::Linux
-        );
-    }
+            .unwrap(),
+    );
+    assert_eq!(refused["error"]["code"], "config_error", "{refused}");
+    assert!(serde_json::from_value::<skillherd::model::Platform>(json!("cell")).is_err());
+
+    // `cell` is not a machine fence: its block is ordinary text everywhere.
     let source = s.home().join("fenced.md");
-    fs::write(&source, "<!-- linux-only -->\nkept\n<!-- /linux-only -->\n").unwrap();
-    for platform in ["linux", "cell"] {
-        let report = ok(s
-            .cmd()
-            .args(["strip", "--keep", platform])
-            .arg(&source)
-            .output()
-            .unwrap());
-        assert_eq!(report["data"]["keep"], "linux");
-        assert_eq!(report["data"]["files"][0]["content"], "kept\n");
-    }
-    // Both policy tokens and CLI flags produce the same canonical policy.
+    let text = "<!-- linux-only -->\nkept\n<!-- /linux-only -->\n<!-- cell-only -->\nother\n<!-- /cell-only -->\n";
+    fs::write(&source, text).unwrap();
+    let report = ok(s
+        .cmd()
+        .args(["strip", "--keep", "linux"])
+        .arg(&source)
+        .output()
+        .unwrap());
+    assert_eq!(report["data"]["keep"], "linux");
+    assert_eq!(
+        report["data"]["files"][0]["content"],
+        "kept\n<!-- cell-only -->\nother\n<!-- /cell-only -->\n"
+    );
+    let refused = s
+        .cmd()
+        .args(["strip", "--keep", "cell"])
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert_eq!(
+        refused.status.code(),
+        Some(2),
+        "--keep cell is a usage error"
+    );
+
+    // `!linux` and `--no-linux` exclude Linux; `!cell` and `--no-cell` are unknown.
     let pool = s.pool();
     skill(&pool, "example");
     fs::create_dir_all(pool.join(".globals")).unwrap();
-    for token in ["!linux", "!cell"] {
+    let list = |token: &str| {
         fs::write(
             pool.join(".globals/sets"),
             format!("example main {token}\n"),
         )
         .unwrap();
-        let report = ok(s
-            .cmd()
+        s.cmd()
             .arg("--pool")
             .arg(&pool)
             .env("SKILLHERD_PLATFORM", "linux")
             .args(["list", "--harness", "claude"])
             .output()
-            .unwrap());
-        assert!(report["data"]["skills"].as_array().unwrap().is_empty());
-    }
-    for flag in ["--no-linux", "--no-cell"] {
-        // Exercise a new write, not the lossless no-op for an existing legacy row.
-        fs::write(pool.join(".globals/sets"), "").unwrap();
-        ok(s.cmd()
-            .arg("--pool")
-            .arg(&pool)
-            .args(["on", "example", flag])
-            .output()
-            .unwrap());
-        assert!(
-            fs::read_to_string(pool.join(".globals/sets"))
-                .unwrap()
-                .contains("!linux")
-        );
-    }
-}
-
-#[test]
-fn doctor_reads_legacy_linux_snapshot_only_when_canonical_snapshot_is_absent() {
-    let s = Sandbox::new();
-    let pool = s.pool();
-    let npx = pool.join(".npx");
-    fs::create_dir_all(&npx).unwrap();
-    let lock = s.home().join("live-lock.json");
-    let bytes = r#"{"version":1,"skills":{}}"#;
-    fs::write(&lock, bytes).unwrap();
-    fs::write(npx.join("skill-lock.cell.json"), bytes).unwrap();
-    let doctor = || {
-        ok(s.cmd()
-            .arg("--pool")
-            .arg(&pool)
-            .env("SKILLHERD_LOCK", &lock)
-            .env("SKILLHERD_PLATFORM", "linux")
-            .env("SKILLHERD_SNAPSHOT_LOCK", "1")
-            .arg("doctor")
-            .output()
-            .unwrap())
-    };
-    assert!(npx.join("skill-lock.cell.json").is_file());
-    assert!(
-        !doctor()["data"]["findings"]
-            .as_array()
             .unwrap()
-            .iter()
-            .any(|f| f["code"] == "lock_drift")
+    };
+    let report = ok(list("!linux"));
+    assert!(report["data"]["skills"].as_array().unwrap().is_empty());
+    let refused = error(list("!cell"));
+    assert_eq!(refused["error"]["code"], "policy_bad_token", "{refused}");
+    fs::write(pool.join(".globals/sets"), "").unwrap();
+    ok(s.cmd()
+        .arg("--pool")
+        .arg(&pool)
+        .args(["on", "example", "--no-linux"])
+        .output()
+        .unwrap());
+    assert!(
+        fs::read_to_string(pool.join(".globals/sets"))
+            .unwrap()
+            .contains("!linux")
     );
-    // Canonical bytes win, even when an identical legacy copy still exists.
-    fs::write(npx.join("skill-lock.linux.json"), "different").unwrap();
-    let output = s
+    let refused = s
         .cmd()
         .arg("--pool")
         .arg(&pool)
-        .env("SKILLHERD_LOCK", &lock)
-        .env("SKILLHERD_PLATFORM", "linux")
-        .env("SKILLHERD_SNAPSHOT_LOCK", "1")
-        .arg("doctor")
+        .args(["on", "example", "--no-cell"])
         .output()
         .unwrap();
-    assert_eq!(output.status.code(), Some(1));
-    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
-    let finding = report["data"]["findings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|f| f["code"] == "lock_drift")
-        .unwrap();
-    assert_eq!(
-        finding["path"],
-        npx.join("skill-lock.linux.json").to_str().unwrap()
-    );
+    assert_eq!(refused.status.code(), Some(2), "--no-cell is a usage error");
 }
 
 struct Sandbox {

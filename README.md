@@ -6,22 +6,12 @@ Claude Code, Codex, pi and the shared `~/.agents/skills` folder. It changes
 only the links and copies it can prove it made, so skills you installed some
 other way stay exactly where they are.
 
-Every coding agent reads skills from its own folder. Keeping the same skills
-in all of them means copying folders around by hand, and the copies drift.
-With `skillherd` you edit a skill once, in the library, and every agent you
-chose sees the change.
-
 > **Are you an AI agent setting this up for someone?** Read
 > [docs/agent-setup.md](docs/agent-setup.md).
 
-Version 0.1.0, the first public release. macOS and Linux only. Output is JSON,
-written for scripts and agents first; `on`, `off`, `render` and `doctor` print
-a short summary instead when run in a terminal.
-
 ## Quick start
 
-You need Rust 1.88 or newer (with Cargo), a C compiler toolchain and Git.
-Build and install from a clone:
+Build and install from a clone with Rust 1.88 or newer (with Cargo), a C compiler toolchain and Git. The installer writes to `~/.local/bin`.
 
 ```bash
 git clone https://github.com/treygoff24/skillherd
@@ -31,9 +21,8 @@ export PATH="$HOME/.local/bin:$PATH"    # if ~/.local/bin is not on PATH yet
 skillherd --version
 ```
 
-Next, write a skill into the library and turn it on. The library is
-`~/.agents/skill-library` unless you configure another, with one folder per
-skill:
+Next, write a skill into `~/.agents/skill-library` and turn it on.
+Each folder holds a `SKILL.md` file.
 
 ```bash
 mkdir -p ~/.agents/skill-library/review-errors
@@ -63,18 +52,10 @@ review-errors` removes the line and both links, and nothing else.
 
 ## Is this the right tool?
 
-If all you want is the same skills in every agent, there are lower-friction
-options, and you should try them first:
-
-- [`npx skills`](https://skills.sh) (Vercel's `skills` CLI) installs a skill
-  into the folders of many agents with one command and keeps a lock file.
-  Each install decides which agents get the skill; there is no standing
-  policy to re-apply later.
-- [skillshare](https://github.com/runkids/skillshare) syncs one library into
-  many tools, with per-target include and exclude filters, Git-based sharing,
-  a security audit, a desktop app and Windows support. "One library, many
-  harnesses" is not new, and skillshare covers more ground than `skillherd`
-  does.
+Two alternatives are [`npx skills`](https://skills.sh), which installs skills
+into selected agent folders, and
+[skillshare](https://github.com/runkids/skillshare), which syncs a shared
+library with per-target filters and supports Windows.
 
 `skillherd` is for people who want, in addition:
 
@@ -198,8 +179,8 @@ installed earlier and says so. An `npx` it did not install is never touched.
 
 ### Your library somewhere else
 
-The default library is `~/.agents/skill-library`. To keep it elsewhere, save
-the path once:
+The default library is `~/.agents/skill-library`. To keep it elsewhere, merge
+the `library` key into your config. For a fresh config:
 
 ```bash
 mkdir -p ~/.config/skillherd
@@ -213,7 +194,11 @@ a source.
 
 ### A Git library
 
+Merge these keys into an existing config, preserving other settings. For a
+new config:
+
 ```bash
+mkdir -p ~/.config/skillherd
 cat > ~/.config/skillherd/config.json <<'EOF'
 {
   "library": "~/my-skills",
@@ -266,12 +251,9 @@ an agent to drive `skillherd`. Copy that folder into your library and run
 | `npx skills remove foo -g` | `skillherd remove foo` |
 | `npx skills list` | `skillherd list --all` |
 
-`skillherd install` runs the pinned `skills@1.7.0` package with a scratch
-home folder (the **stage**, under `~/.agents/.skill-stage/`), imports what it
-installed there into your library with an import record (`.npx/foo.json`, which
-remembers the source and a hash for detecting local edits), and copies its
-lock file to the usual lock location. It does not activate the skill: read
-it, then run `skillherd on foo`.
+`skillherd install` imports through pinned `skills@1.7.0` into a scratch
+folder, then records the source in your library. It does not activate the
+skill: read it, then run `skillherd on foo`.
 
 If you edited an imported skill, `update` refuses to overwrite it. Rerun with
 `--adopt foo` to take the upstream copy or `--keep foo` to keep yours and stop
@@ -288,10 +270,8 @@ real `npx skills remove <name> -g`, then `skillherd install <source> --skill
 <name>` and `skillherd on <name>`. Both tools share one lock file, so the
 other order would make the removal forget the new install.
 
-`skillherd install owner/repo --release-asset skills.zip --tag-prefix v
---skill foo` imports a skill shipped as a zip on GitHub releases
-(experimental). `skillherd update` does not update skills imported from a
-local path.
+Release-asset imports are experimental; local-path imports do not receive
+upstream updates. See [import options](docs/reference.md).
 
 ### Per-harness and per-platform text
 
@@ -307,11 +287,9 @@ Only macOS sees this.
 <!-- /mac-only -->
 ```
 
-A skill with markers is served as a stripped copy instead of a link; each
-harness gets the text meant for it. A whole replacement version for one
-harness goes in `NAME/.variants/<harness>/`. `skillherd strip` applies the
-same markers to any file you name, without touching a harness folder. The
-details are in [docs/reference.md](docs/reference.md#per-harness-text).
+Marked skills are served as copies with only the intended text. Whole
+per-harness versions and `strip` are covered in
+[per-harness text](docs/reference.md#per-harness-text).
 
 ### Project skills (experimental)
 
@@ -322,26 +300,9 @@ the current folder.
 
 ## Commands
 
-```text
-skillherd list [--harness H | --tier main|lane | --all]
-skillherd search <query> [--names]
-skillherd info <name>
-skillherd on <names…> [--tier main|lane] [--only H] [--not H] [--no-mac] [--no-linux]
-skillherd off <names…>
-skillherd add <names…|@preset> [--project DIR]
-skillherd drop <names…> [--project DIR]
-skillherd render [--surface H]
-skillherd install <source> [--skill N] [--adopt N] [--keep N]
-              [--release-asset ZIP --tag-prefix P [--release-dir DIR]]
-skillherd update [names…] [--adopt N] [--keep N]
-skillherd remove <names…> [--force]
-skillherd reconcile [--adopt N] [--keep N] [--restore N] | --discard N
-skillherd doctor [--fix] [--capabilities]
-skillherd strip --keep mac|linux [--harness H] [--in-place] <files…>
-skillherd sync
-skillherd npx <npx arguments…>
-skillherd schema [all|input|output|error]
-```
+[The command reference](docs/reference.md) covers every command and option.
+Use `skillherd --help` for the command list and `skillherd COMMAND --help` for
+one command. The distinctions that matter:
 
 - `on` and `off` change what every harness sees; `add` and `drop` change one
   project.
@@ -384,15 +345,11 @@ other destinations before anything is planned.
 
 ## Safety and trust
 
-`skillherd` writes to the harness folders (and `~/.claude/agents` for
-subagents you opt into), the library, its scratch and state folders under
-`~/.agents`, `~/.local/state/skillherd` and `~/.cache/skillherd`, and, for
-`add --project` and `strip --in-place`, the folders and files you name.
-[docs/reference.md](docs/reference.md#what-it-writes-and-where) lists every
-location. It does not edit shell configuration or any harness's settings
-file. It has no telemetry of its own and makes no network requests itself:
-`sync` runs Git, the import commands run `npx` and Git, and release-asset
-imports call the GitHub API. Everything else works offline.
+`skillherd` writes the library, managed harness entries, and its own state
+and cache. Project commands write to the project you name. It does not edit
+shell or harness settings, and has no telemetry of its own. Git operations
+and upstream imports use the network; other commands work offline.
+[The reference](docs/reference.md#what-it-writes-and-where) lists all paths.
 
 What you are trusting:
 
@@ -403,14 +360,11 @@ What you are trusting:
   upstream branch or newest release holds now, and an active skill serves the
   new text on the next render. In a Git library, `git log -p` on the import
   commit shows what changed.
-- The `npx` run is redirected, not sandboxed. It gets a scratch home, an
-  empty working folder, a scrubbed environment and an npm configuration the
-  tool controls, so its output lands in the stage rather than your agent
-  folders and it never picks up a package or `.npmrc` from your current
-  project. But it is still upstream code running as you: it can read and
-  write anywhere you can and use the network, OpenSSH still reads keys from
-  your real home folder, and a system-wide Git credential helper (such as the
-  macOS keychain) still answers. Only install from sources you trust.
+- The `npx` run is redirected, not sandboxed. Its scratch home, empty working
+  folder and scrubbed environment keep normal output out of your harness
+  folders. Upstream code still runs as you, with your file and network
+  permissions. OpenSSH can read your real keys and system credential helpers
+  still answer. Only import sources you trust.
 - By default that run gets no SSH agent, no tokens and none of your Git or npm
   configuration, so a private source may fail to clone.
   `SKILLHERD_NPX_CREDENTIALS=1` passes them for one command; the exact list is
@@ -428,10 +382,12 @@ What you are trusting:
    policy. Every link and copy the tool made is removed; nothing else is.
 
    ```bash
-   mv ~/.agents/skill-library/.globals/sets ~/skillherd-sets.saved
+   test ! -e ~/skillherd-sets.saved && mv ~/.agents/skill-library/.globals/sets ~/skillherd-sets.saved
    skillherd render
    ```
 
+   Run these commands separately and stop on an error. If the backup already
+   exists, choose an unused name; if no policy exists, skip the move.
    Use your library's path if it is not the default. For each project where
    you used `add`, run `skillherd drop <names…> --project DIR` first.
 2. Delete the binary (`~/.local/bin/skillherd`, and `~/.local/bin/npx` if you
@@ -458,19 +414,10 @@ What you are trusting:
 [AGENTS.md](AGENTS.md) has the rules every change must keep and how to test
 it; [ARCHITECTURE.md](ARCHITECTURE.md) explains how the tool works. In short:
 
-```bash
-tests/skill-gate.sh                 # fmt, clippy, every Rust test, release build
-SKIP_GATE=1 tests/acceptance.sh     # end to end in a scratch HOME
-bash tests/install.test.sh          # the installer
-bash tests/shell-check.sh           # bash -n and shellcheck on every script
-```
-
-Continuous integration runs these on macOS and Linux. Changes are listed in
-[CHANGELOG.md](CHANGELOG.md).
-
-Most of this code was written by AI coding agents working under the author's
-direction and review. The test suite, not the authorship, is the evidence that
-it behaves as described.
+CI checks formatting, lint, Rust tests, installation and end-to-end behavior
+on macOS and Linux. See [AGENTS.md](AGENTS.md) for commands and isolation rules,
+and [CHANGELOG.md](CHANGELOG.md) for changes. AI coding agents wrote most of
+the code under the author's direction and review.
 
 ## License
 

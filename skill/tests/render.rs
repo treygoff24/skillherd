@@ -219,7 +219,7 @@ fn foreign_entries_are_listed_and_left_alone() {
     fixture.make_dir(&outside);
     fs::write(
         outside.join("SKILL.md"),
-        "# elsewhere\n\n<!-- cell-only -->\nTHEIRS\n<!-- /cell-only -->\n",
+        "# elsewhere\n\n<!-- linux-only -->\nTHEIRS\n<!-- /linux-only -->\n",
     )
     .unwrap();
     let elsewhere = fixture.claude().join("elsewhere");
@@ -263,7 +263,7 @@ fn foreign_entries_are_listed_and_left_alone() {
     assert_eq!(target_of(&elsewhere), outside);
     assert_eq!(
         fs::read_to_string(outside.join("SKILL.md")).unwrap(),
-        "# elsewhere\n\n<!-- cell-only -->\nTHEIRS\n<!-- /cell-only -->\n",
+        "# elsewhere\n\n<!-- linux-only -->\nTHEIRS\n<!-- /linux-only -->\n",
         "nothing reached outside the surface"
     );
     // ... while the desired fenced skill was materialised.
@@ -411,7 +411,7 @@ fn a_malformed_fence_fails_the_render_before_anything_is_written() {
     fixture.skill("plain", "# plain\n");
     fixture.skill(
         "boom",
-        "# boom\n\n<!-- cell-only -->\none\n<!-- mac-only -->\ntwo\n<!-- /mac-only -->\n<!-- /cell-only -->\n",
+        "# boom\n\n<!-- linux-only -->\none\n<!-- mac-only -->\ntwo\n<!-- /mac-only -->\n<!-- /linux-only -->\n",
     );
     fixture.skill("oldname", "# oldname\n");
     let claude = fixture.claude();
@@ -430,7 +430,7 @@ fn a_malformed_fence_fails_the_render_before_anything_is_written() {
     assert_eq!(err.details()["errors"][0]["name"], "boom");
     assert_eq!(
         err.details()["errors"][0]["message"],
-        "SKILL.md: line 5: <!-- mac-only --> opened while <!-- cell-only --> block from line 3 is still open (nesting is not allowed)"
+        "SKILL.md: line 5: <!-- mac-only --> opened while <!-- linux-only --> block from line 3 is still open (nesting is not allowed)"
     );
     assert_eq!(
         err.details()["surface"],
@@ -554,7 +554,7 @@ fn a_harness_change_refreshes_a_served_copy() {
         serde_json::from_str(&fs::read_to_string(fenced.join(".skill-render.json")).unwrap())
             .unwrap();
     assert_eq!(recorded["harness"], "claude");
-    assert_eq!(recorded["render_version"], 4);
+    assert_eq!(recorded["render_version"], skillherd::strip::RENDER_VERSION);
 
     policy.harnesses[0].variant_key = Some("codex".to_string());
     let second = fixture.render(&["claude"], false, &policy);
@@ -1193,7 +1193,7 @@ fn on_with_a_malformed_fence_writes_neither_the_row_nor_a_link() {
         ("good", "# good\n"),
         (
             "boom",
-            "# boom\n\n<!-- cell-only -->\none\n<!-- mac-only -->\ntwo\n<!-- /mac-only -->\n<!-- /cell-only -->\n",
+            "# boom\n\n<!-- linux-only -->\none\n<!-- mac-only -->\ntwo\n<!-- /mac-only -->\n<!-- /linux-only -->\n",
         ),
     ] {
         fs::create_dir_all(library.join(name)).unwrap();

@@ -152,9 +152,9 @@ fn platform_from_env() -> Result<Platform> {
     match env_override("SKILLHERD_PLATFORM") {
         Some(value) => match value.to_str().map(str::trim) {
             Some("mac") => Ok(Platform::Mac),
-            Some("linux" | "cell") => Ok(Platform::Linux),
+            Some("linux") => Ok(Platform::Linux),
             _ => Err(Error::config_error(format!(
-                "SKILLHERD_PLATFORM must be `mac` or `linux` (`cell` is a legacy alias), got {}",
+                "SKILLHERD_PLATFORM must be `mac` or `linux`, got {}",
                 value.display()
             ))),
         },
@@ -200,16 +200,13 @@ pub fn pick_npx_from_path(path_env: &OsStr) -> Option<PathBuf> {
 
 pub(crate) fn is_npx_wrapper(path: &Path) -> bool {
     use std::io::Read;
-    const LEGACY_HEADER: &str = "#!/usr/bin/env bash\n# npx — wrapper around the real npx so a pasted skills.sh command lands in the\n# pool through `skill`. It is intentionally boring: every invocation that is not\n# `npx skills add|update|remove …` passes through unchanged.\n";
     let mut header = [0; 1024];
     std::fs::File::open(path)
         .and_then(|mut f| f.read(&mut header))
         .is_ok_and(|n| {
-            let text = String::from_utf8_lossy(&header[..n]);
-            text.starts_with(LEGACY_HEADER)
-                || text.lines().any(|line| {
-                    matches!(line, "# skillherd-npx-shim: 1" | "# skill-cli-npx-shim: 1")
-                })
+            String::from_utf8_lossy(&header[..n])
+                .lines()
+                .any(|line| line == "# skillherd-npx-shim: 1")
         })
 }
 
@@ -627,37 +624,23 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn renamed_and_legacy_shim_markers_are_skipped() {
-        let dir = TempDir::new().unwrap();
-        let candidate = dir.path().join("npx");
-        for marker in ["# skillherd-npx-shim: 1", "# skill-cli-npx-shim: 1"] {
-            fs::write(&candidate, format!("#!/bin/sh\n{marker}\n")).unwrap();
-            assert!(candidate.is_file());
-            assert_eq!(pick_npx_from_path(dir.path().as_os_str()), None, "{marker}");
-        }
-    }
-
-    #[test]
-    fn npx_wrapper_detection_requires_an_owned_marker_or_exact_legacy_header() {
+    fn npx_wrapper_detection_requires_the_exact_owned_marker() {
         let dir = TempDir::new().unwrap();
         let candidate = dir.path().join("npx");
         for header in [
             "#!/bin/sh\n# My wrapper around the real npx\n",
-            "#!/bin/sh\n# not # skill-cli-npx-shim: 1\n",
+            "#!/bin/sh\n# not # skillherd-npx-shim: 1\n",
+            "#!/bin/sh\n# skillherd-npx-shim: 2\n",
         ] {
             fs::write(&candidate, header).unwrap();
             assert_eq!(
                 pick_npx_from_path(dir.path().as_os_str()),
-                Some(candidate.clone())
+                Some(candidate.clone()),
+                "{header}"
             );
         }
-        for header in [
-            "#!/bin/sh\n# skill-cli-npx-shim: 1\n",
-            "#!/usr/bin/env bash\n# npx — wrapper around the real npx so a pasted skills.sh command lands in the\n# pool through `skill`. It is intentionally boring: every invocation that is not\n# `npx skills add|update|remove …` passes through unchanged.\n",
-        ] {
-            fs::write(&candidate, header).unwrap();
-            assert_eq!(pick_npx_from_path(dir.path().as_os_str()), None);
-        }
+        fs::write(&candidate, "#!/bin/sh\n# skillherd-npx-shim: 1\n").unwrap();
+        assert_eq!(pick_npx_from_path(dir.path().as_os_str()), None);
     }
 
     #[test]
@@ -858,7 +841,7 @@ mod tests {
         let real_dir = home.join("real/bin");
         fs::create_dir_all(&shim_dir).unwrap();
         fs::create_dir_all(&real_dir).unwrap();
-        fs::write(shim_dir.join("npx"), "#!/bin/sh\n# skill-cli-npx-shim: 1\n").unwrap();
+        fs::write(shim_dir.join("npx"), "#!/bin/sh\n# skillherd-npx-shim: 1\n").unwrap();
         fs::write(real_dir.join("npx"), "#!/bin/sh\n").unwrap();
 
         let shim_first = std::env::join_paths([&shim_dir, &real_dir]).unwrap();

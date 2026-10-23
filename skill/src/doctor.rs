@@ -50,13 +50,7 @@ pub struct FindingCode {
 ///
 /// The scan, `--capabilities` and the exit arithmetic all read this table, so
 /// they cannot disagree about a code.
-pub const FINDING_CODES: [FindingCode; 21] = [
-    FindingCode {
-        code: "legacy_config",
-        severity: Severity::Info,
-        fixable: false,
-        remediation: "move the old skill configuration directory to skillherd under XDG_CONFIG_HOME (default ~/.config); no legacy configuration is read automatically",
-    },
+pub const FINDING_CODES: [FindingCode; 20] = [
     FindingCode {
         code: "inbox_unreconciled",
         severity: Severity::Warn,
@@ -313,21 +307,6 @@ pub fn exit_code(report: &DoctorReport) -> i32 {
     if remaining { EXIT_DOCTOR_FINDINGS } else { 0 }
 }
 
-fn scan_legacy_config(paths: &Paths, findings: &mut Vec<Finding>) {
-    let root = std::env::var_os("XDG_CONFIG_HOME")
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| paths.home.join(".config"));
-    let old = root.join("skill");
-    if old.is_dir() && !root.join("skillherd").exists() {
-        findings.push(finding(
-            "legacy_config",
-            &old,
-            format!("legacy configuration at {}; move it to {} to use it with skillherd (it is not read automatically)", old.display(), root.join("skillherd").display()),
-        ));
-    }
-}
-
 /// Scan, and with `fix` repair what is safe.
 ///
 /// Findings are not a failure: the caller publishes the linter exit status with
@@ -341,7 +320,6 @@ pub fn run(paths: &Paths, fix: bool, dry_run: bool) -> Result<DoctorReport> {
     let policy = policy::load_for_inspection(paths)?;
     let mut findings = Vec::new();
 
-    scan_legacy_config(paths, &mut findings);
     scan_inbox(paths, &mut findings)?;
     scan_surfaces(paths, &policy, &mut findings)?;
     scan_policy_names(paths, &policy, &mut findings);
@@ -510,7 +488,9 @@ fn scan_surfaces(paths: &Paths, policy: &Policy, findings: &mut Vec<Finding>) ->
 
 fn scan_policy_names(paths: &Paths, policy: &Policy, findings: &mut Vec<Finding>) {
     for row in &policy.rows {
-        if library_entry_exists(paths, &row.name) {
+        // A row that excludes this machine activates nothing here, so its
+        // skill may legitimately be absent from this machine's pool.
+        if row.not_platform.contains(&paths.platform) || library_entry_exists(paths, &row.name) {
             continue;
         }
         findings.push(finding_with_hint(
@@ -847,18 +827,7 @@ fn scan_lock_snapshot(paths: &Paths, findings: &mut Vec<Finding>) -> Result<()> 
     if std::env::var("SKILLHERD_SNAPSHOT_LOCK").as_deref() != Ok("1") {
         return Ok(());
     }
-    let mut snapshot = paths.library.join(crate::npx::lock_snapshot(paths));
-    // Only absence permits the legacy alias: a dangling or unreadable canonical
-    // entry must not silently redirect diagnostics to another snapshot.
-    if paths.platform == crate::model::Platform::Linux
-        && fs::symlink_metadata(&snapshot)
-            .is_err_and(|err| err.kind() == std::io::ErrorKind::NotFound)
-    {
-        let legacy = paths.library.join(".npx/skill-lock.cell.json");
-        if fs::symlink_metadata(&legacy).is_ok() {
-            snapshot = legacy;
-        }
-    }
+    let snapshot = paths.library.join(crate::npx::lock_snapshot(paths));
     let live = read_bytes(&paths.lock)?;
     let kept = read_bytes(&snapshot)?;
     match (live, kept) {
@@ -1564,7 +1533,7 @@ mod tests {
 
     #[test]
     fn every_published_code_has_a_row() {
-        assert_eq!(FINDING_CODES.len(), 21);
+        assert_eq!(FINDING_CODES.len(), 20);
         let capabilities = capabilities();
         assert_eq!(capabilities.codes.len(), FINDING_CODES.len());
         assert_eq!(capabilities.exit_codes.len(), 5);
@@ -1651,6 +1620,28 @@ mod tests {
                 .as_deref()
                 .is_some_and(|hint| hint.contains("skillherd off ghost"))
         );
+    }
+
+    /// A row that excludes this machine's platform asks for nothing here: its
+    /// skill missing from this pool is not reported (a Mac-only skill on a
+    /// Linux machine). The same row on the platform it applies to still is.
+    #[test]
+    fn a_missing_name_on_a_row_excluding_this_platform_is_not_reported() {
+        use crate::model::Platform;
+        let (_dir, mut paths) = fixture();
+        let mut row = set_row("mac-tool", true, false, 3);
+        row.not_platform = vec![Platform::Linux];
+        let policy = with_rows(&paths, vec![row]);
+
+        paths.platform = Platform::Linux;
+        let mut findings = Vec::new();
+        scan_policy_names(&paths, &policy, &mut findings);
+        assert!(findings.is_empty(), "{findings:?}");
+
+        paths.platform = Platform::Mac;
+        scan_policy_names(&paths, &policy, &mut findings);
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert_eq!(findings[0].code, "policy_name_missing");
     }
 
     #[test]
@@ -1790,13 +1781,12 @@ enabled = false
         let npx = paths.library.join(".npx");
         fs::create_dir_all(&npx).unwrap();
         // The lock snapshot has the `skills` CLI's own shape, not a record's;
-        // snapshots have a platform suffix; the legacy Linux alias is retained.
+        // snapshots have a platform suffix.
         let lock = r#"{"version":1,"skills":{},"lastSelectedAgents":[],"dismissed":{}}"#;
         for name in [
             "skill-lock.json",
             "skill-lock.mac.json",
             "skill-lock.linux.json",
-            "skill-lock.cell.json",
         ] {
             fs::write(npx.join(name), lock).unwrap();
         }

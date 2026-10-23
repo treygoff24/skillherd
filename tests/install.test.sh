@@ -33,7 +33,7 @@ printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/stubs/cc"
 chmod 0755 "$TMP/stubs/cargo" "$TMP/stubs/cc"
 export INSTALL_TEST_TMP="$TMP"
 export CARGO_TARGET_DIR="$TMP/target"
-# Do not inspect or shadow tools installed on the owner's PATH (or procps skill).
+# Do not inspect or shadow tools installed on the owner's PATH.
 mkdir -p "$TMP/tools"
 for tool in basename bash cat chmod cksum cmp cp dirname env grep head install ln mkdir mktemp mv nice python3 readlink rm sed tail tr uname; do
   if [ "$tool" = bash ] && [ -n "${INSTALL_TEST_BASH:-}" ]; then
@@ -147,8 +147,6 @@ drift_rc=$?
 mkdir -p "$REPO/skill/scripts"
 printf '#!/usr/bin/env bash\n# skillherd-npx-shim: 1\necho current\n' > "$REPO/skill/scripts/npx"
 ln -s ../skill/scripts/npx "$REPO/bin/npx"
-mkdir -p "$REPO/skill/scripts/fixtures"
-cp "$ROOT/skill/scripts/fixtures/npx-legacy" "$REPO/skill/scripts/fixtures/npx-legacy"
 chmod 0755 "$REPO/bin/npx"
 for kind in regular symlink; do
   P="$TMP/foreign-$kind"
@@ -174,46 +172,30 @@ for kind in regular symlink; do
     || bad "foreign $kind npx not safely refused: $(cat "$TMP/foreign-$kind.out")"
 done
 
-P="$TMP/old-wrapper"
-mkdir -p "$P/bin"
-cp "$ROOT/skill/scripts/fixtures/npx-legacy" "$P/bin/npx"
-# This is a distinct, recognized legacy wrapper, not an identical no-op.
-if cmp -s "$REPO/bin/npx" "$P/bin/npx"; then
-  bad "legacy wrapper fixture must differ from current wrapper"
-else
-  SKILLHERD_CLI_PLATFORM=darwin "$INSTALL" --with-npx-shim --prefix "$P" > "$TMP/wrapper-update.out" 2>&1
-  [ $? -eq 0 ] && [ ! -L "$P/bin/npx" ] && cmp -s "$REPO/bin/npx" "$P/bin/npx" \
-    && [ -x "$P/bin/skillherd" ] \
-    && ok "recognized legacy npx wrapper updates" || bad "legacy wrapper update failed: $(cat "$TMP/wrapper-update.out")"
-fi
-
-# Both versioned self markers survive the rename, even without receipts.
-for marker in skill-cli skillherd; do
-  for action in update remove; do
-    P="$TMP/marker-$marker-$action"
-    mkdir -p "$P/bin"
-    printf '#!/bin/sh\n# %s-npx-shim: 1\necho previous\n' "$marker" > "$P/bin/npx"
-    cmp -s "$P/bin/npx" "$REPO/bin/npx" && bad "marker fixture must differ from source"
-    if [ "$action" = update ]; then
-      "$INSTALL" --with-npx-shim --prefix "$P" > "$TMP/marker.out" 2>&1
-      [ $? -eq 0 ] && cmp -s "$P/bin/npx" "$REPO/bin/npx" \
-        && ok "$marker marker permits owned shim upgrade" || bad "$marker marker upgrade failed"
-    else
-      "$INSTALL" --prefix "$P" > "$TMP/marker.out" 2>&1
-      [ $? -eq 0 ] && [ ! -e "$P/bin/npx" ] \
-        && ok "$marker marker permits owned shim removal" || bad "$marker marker removal failed"
-    fi
-  done
+# The versioned self marker proves ownership even without a receipt.
+for action in update remove; do
+  P="$TMP/marker-$action"
+  mkdir -p "$P/bin"
+  printf '#!/bin/sh\n# skillherd-npx-shim: 1\necho previous\n' > "$P/bin/npx"
+  cmp -s "$P/bin/npx" "$REPO/bin/npx" && bad "marker fixture must differ from source"
+  if [ "$action" = update ]; then
+    "$INSTALL" --with-npx-shim --prefix "$P" > "$TMP/marker.out" 2>&1
+    [ $? -eq 0 ] && cmp -s "$P/bin/npx" "$REPO/bin/npx" \
+      && ok "marker permits owned shim upgrade" || bad "marker upgrade failed"
+  else
+    "$INSTALL" --prefix "$P" > "$TMP/marker.out" 2>&1
+    [ $? -eq 0 ] && [ ! -e "$P/bin/npx" ] \
+      && ok "marker permits owned shim removal" || bad "marker removal failed"
+  fi
 done
-P="$TMP/legacy-receipts"
-mkdir -p "$P/bin" "$P/share/skill-cli"
-printf '#!/bin/sh\necho old-receipt-shim\n' > "$P/bin/npx"
-cksum < "$P/bin/npx" > "$P/share/skill-cli/installed-npx.cksum"
-"$INSTALL" --with-npx-shim --prefix "$P" > "$TMP/legacy-receipts.out" 2>&1
-[ $? -eq 0 ] && cmp -s "$P/bin/npx" "$REPO/bin/npx" \
-  && [ -f "$P/share/skillherd/installed-npx.cksum" ] \
-  && ok "old receipt directory supports upgrades with new receipts" || bad "old shim receipt not recognized"
-
+# A look-alike marker from another tool is not ours.
+P="$TMP/marker-foreign"
+mkdir -p "$P/bin"
+printf '#!/bin/sh\n# other-npx-shim: 1\necho other\n' > "$P/bin/npx"
+cp "$P/bin/npx" "$TMP/marker-foreign-copy"
+"$INSTALL" --with-npx-shim --prefix "$P" > "$TMP/marker.out" 2>&1
+[ $? -eq 1 ] && cmp -s "$P/bin/npx" "$TMP/marker-foreign-copy" \
+  && ok "another tool's marker does not establish ownership" || bad "foreign marker allowed overwrite"
 P="$TMP/modified-marked-shim"
 "$INSTALL" --with-npx-shim --prefix "$P" > "$TMP/modified-shim.out" 2>&1
 printf '# local edit\n' >> "$P/bin/npx"
@@ -236,8 +218,7 @@ grep -q '^Usage:' "$TMP/help.out" && grep -q -- '--with-npx-shim' "$TMP/help.out
   && grep -q 'cargo clean' "$TMP/help.out" && ! grep -q '0755\|mid-rebase' "$TMP/help.out" \
   && ok "help shows usage and build-cache cleanup, not internal comments" || bad "help is not user-facing"
 
-printf '#!/bin/sh\n# skill-render fixture\nexit 0\n' > "$REPO/bin/skill-render"
-for name in skillherd skill-render; do
+for name in skillherd; do
   for kind in regular symlink path; do
     P="$TMP/foreign-$name-$kind"
     mkdir -p "$P/bin" "$TMP/path-$name"
@@ -262,13 +243,11 @@ done
 
 P="$TMP/owned-upgrade"
 "$INSTALL" --prefix "$P" > "$TMP/upgrade.out" 2>&1
-# A changed build and helper are recognized by receipts for the previous bytes.
+# A changed build is recognized by the receipt for the previous bytes.
 printf '# upgraded build\n' >> "$TMP/target/release/skillherd"
-printf '# upgraded helper\n' >> "$REPO/bin/skill-render"
 "$INSTALL" --prefix "$P" >> "$TMP/upgrade.out" 2>&1
 [ $? -eq 0 ] && cmp -s "$TMP/target/release/skillherd" "$P/bin/skillherd" \
-  && cmp -s "$REPO/bin/skill-render" "$P/bin/skill-render" \
-  && ok "receipts allow owned binary and helper upgrades" || bad "owned upgrade refused: $(cat "$TMP/upgrade.out")"
+  && ok "receipts allow owned binary upgrades" || bad "owned upgrade refused: $(cat "$TMP/upgrade.out")"
 printf '# user modification\n' >> "$P/bin/skillherd"
 cp "$P/bin/skillherd" "$TMP/modified-skill"
 "$INSTALL" --prefix "$P" > "$TMP/modified.out" 2>&1
@@ -340,17 +319,16 @@ PATH="$TMP/real-first:$TMP/real-second:$PATH" SKILLHERD_REAL_NPX='' "$ROOT/bin/n
   && ok "real npx follows PATH order" || bad "PATH order ignored: $(cat "$TMP/path-order.out")"
 
 # Desired-state upgrades remove only owned optional commands.
-for ownership in identical receipt legacy; do
+for ownership in identical receipt; do
   P="$TMP/remove-$ownership"
   "$INSTALL" --with-npx-shim --prefix "$P" > "$TMP/remove.out" 2>&1
-  if [ "$ownership" = legacy ]; then cp "$ROOT/skill/scripts/fixtures/npx-legacy" "$P/bin/npx"; fi
   if [ "$ownership" = receipt ]; then printf '# new shim\n' >> "$REPO/skill/scripts/npx"; fi
   "$INSTALL" --verify --prefix "$P" > "$TMP/remove-verify.out" 2>&1
   verify_rc=$?
   [ -f "$P/bin/npx" ] || bad "removal fixture missing ($ownership)"
   "$INSTALL" --prefix "$P" >> "$TMP/remove.out" 2>&1
   [ $? -eq 0 ] && [ "$verify_rc" -eq 1 ] && [ ! -e "$P/bin/npx" ] \
-    && grep -q 'UNWANTED.*npx' "$TMP/remove-verify.out" && grep -q 'now opt-in' "$TMP/remove.out" \
+    && grep -q 'UNWANTED.*npx' "$TMP/remove-verify.out" && grep -q 'not requested' "$TMP/remove.out" \
     && ok "owned $ownership shim removed unless opted in; verify reports it" || bad "owned $ownership shim remains: $(cat "$TMP/remove.out" "$TMP/remove-verify.out")"
 done
 P="$TMP/foreign-unwanted"
@@ -364,52 +342,6 @@ cp "$P/bin/npx" "$TMP/user-npx"
 [ $? -eq 1 ] && cmp -s "$TMP/user-npx" "$P/bin/npx" \
   && ok "generic wrapper phrase does not establish ownership" || bad "generic phrase allowed overwrite"
 
-P="$TMP/old-skill-receipt"
-mkdir -p "$P/bin" "$P/share/skill-cli"
-printf '#!/bin/sh\necho MUST_NOT_EXECUTE\nexit 93\n' > "$P/bin/skill"
-cksum < "$P/bin/skill" > "$P/share/skill-cli/installed-skill.cksum"
-[ -f "$P/bin/skill" ] || bad "old skill fixture missing"
-"$INSTALL" --verify --prefix "$P" > "$TMP/old-verify.out" 2>&1
-verify_rc=$?
-[ -f "$P/bin/skill" ] || bad "verify removed old skill"
-"$INSTALL" --prefix "$P" > "$TMP/old-install.out" 2>&1
-[ $? -eq 0 ] && [ "$verify_rc" -eq 1 ] && [ ! -e "$P/bin/skill" ] \
-  && [ -x "$P/bin/skillherd" ] && grep -q 'UNWANTED.*bin/skill ' "$TMP/old-verify.out" \
-  && [ -f "$P/share/skillherd/installed-skillherd.cksum" ] \
-  && ! grep -q MUST_NOT_EXECUTE "$TMP/old-install.out" \
-  && ok "old receipt skill removed without execution; verify reports only" \
-  || bad "old receipt skill upgrade failed: $(cat "$TMP/old-install.out" "$TMP/old-verify.out")"
-
-for kind in regular symlink modified header; do
-  P="$TMP/foreign-old-skill-$kind"
-  mkdir -p "$P/bin" "$P/share/skill-cli"
-  printf '#!/bin/sh\necho foreign-skill\n' > "$TMP/foreign-old-skill"
-  if [ "$kind" = symlink ]; then
-    ln -s "$TMP/foreign-old-skill" "$P/bin/skill"
-  else
-    cp "$TMP/foreign-old-skill" "$P/bin/skill"
-  fi
-  if [ "$kind" = modified ]; then
-    cksum < "$P/bin/skill" > "$P/share/skill-cli/installed-skill.cksum"
-  fi
-  if [ "$kind" = modified ] || [ "$kind" = header ]; then
-    printf '# Manage cross-harness skills from one pool\n' >> "$P/bin/skill"
-    cp "$P/bin/skill" "$TMP/foreign-old-skill"
-  fi
-  chmod 0755 "$P/bin/skill"
-  [ -f "$P/bin/skill" ] || bad "foreign old skill fixture missing ($kind)"
-  PATH="$P/bin:$PATH" "$INSTALL" --prefix "$P" > "$TMP/foreign-old.out" 2>&1
-  rc=$?
-  preserved=1
-  if [ "$kind" = symlink ]; then
-    [ -L "$P/bin/skill" ] && [ "$(readlink "$P/bin/skill")" = "$TMP/foreign-old-skill" ] || preserved=0
-  fi
-  [ "$rc" -eq 0 ] && [ "$preserved" -eq 1 ] && cmp -s "$TMP/foreign-old-skill" "$P/bin/skill" \
-    && [ -x "$P/bin/skillherd" ] && ! grep -q 'procps\|SIGTERM' "$TMP/foreign-old.out" \
-    && ok "foreign old $kind skill preserved without collision warning" \
-    || bad "foreign old $kind skill touched or blocked install: $(cat "$TMP/foreign-old.out")"
-done
-
 # Every PATH hit matters even when an owned copy precedes a foreign one.
 P="$TMP/path-all"
 "$INSTALL" --prefix "$P" > "$TMP/path-all.out" 2>&1
@@ -422,8 +354,7 @@ PATH="$P/bin:$PATH:$TMP/late-system" "$INSTALL" --prefix "$P" >> "$TMP/path-all.
   && ok "foreign later PATH hit refused even behind owned skillherd" || bad "later PATH collision missed"
 PATH="$P/bin:$PATH:$TMP/late-system" "$INSTALL" --allow-name-collision --prefix "$P" > "$TMP/override.out" 2>&1
 [ $? -eq 0 ] && grep -q 'WARNING: allowing foreign skillherd' "$TMP/override.out" \
-  && ! grep -q 'procps\|SIGTERM' "$TMP/override.out" \
-  && ok "explicit collision override proceeds without obsolete procps danger" || bad "collision override failed: $(cat "$TMP/override.out")"
+  && ok "explicit collision override proceeds with a warning" || bad "collision override failed: $(cat "$TMP/override.out")"
 
 P="$TMP/hardlink-receipt"
 "$INSTALL" --prefix "$P" > "$TMP/hardlink.out" 2>&1
@@ -435,20 +366,7 @@ printf '# another build\n' >> "$TMP/target/release/skillherd"
   && ! cmp -s "$TMP/receipt-hardlink" "$P/share/skillherd/installed-skillherd.cksum" \
   && ok "receipt replacement does not write through hardlinks" || bad "receipt wrote through hardlink"
 
-P="$TMP/retire-render"
-"$INSTALL" --prefix "$P" > "$TMP/retire.out" 2>&1
-cp "$REPO/bin/skill-render" "$TMP/legacy-render"
-rm "$REPO/bin/skill-render"
-"$INSTALL" --verify --prefix "$P" > "$TMP/retire-verify.out" 2>&1
-verify_rc=$?
-"$INSTALL" --prefix "$P" >> "$TMP/retire.out" 2>&1
-[ $? -eq 0 ] && [ "$verify_rc" -eq 1 ] && [ ! -e "$P/bin/skill-render" ] \
-  && grep -q 'removed.*skill-render' "$TMP/retire.out" \
-  && ok "retired receipt-backed renderer removed and reported" || bad "retired renderer remains"
-printf '# foreign renderer\n' > "$P/bin/skill-render"
-"$INSTALL" --prefix "$P" >> "$TMP/retire.out" 2>&1
-[ $? -eq 0 ] && grep -qx '# foreign renderer' "$P/bin/skill-render" \
-  && ok "retired foreign renderer preserved" || bad "foreign renderer removed"
+P="$TMP/no-python"
 rm "$TMP/tools/python3"
 "$INSTALL" --prefix "$P" > "$TMP/no-python.out" 2>&1
 [ $? -eq 0 ] && [ -x "$P/bin/skillherd" ] \
@@ -469,12 +387,11 @@ chmod 0755 "$TMP/user-wrapper/npx"
 PATH="$TMP/user-wrapper:$PATH" SKILLHERD_REAL_NPX='' "$ROOT/bin/npx" --version > "$TMP/user-wrapper.out" 2>&1
 [ $? -eq 0 ] && [ "$(cat "$TMP/user-wrapper.out")" = user-npx ] \
   && ok "generic wrapper phrase is a usable real npx" || bad "user wrapper incorrectly skipped"
-# Timeout bounds the infinite exec loop if either self-skip is removed.
-mkdir -p "$TMP/current-shim" "$TMP/legacy-shim"
+# Timeout bounds the infinite exec loop if the self-skip is removed.
+mkdir -p "$TMP/current-shim"
 cp "$ROOT/bin/npx" "$TMP/current-shim/npx"
-cp "$ROOT/skill/scripts/fixtures/npx-legacy" "$TMP/legacy-shim/npx"
-chmod 0755 "$TMP/current-shim/npx" "$TMP/legacy-shim/npx"
-PATH="$TMP/current-shim:$TMP/legacy-shim:$TMP/real-first:$PATH" SKILLHERD_REAL_NPX='' \
+chmod 0755 "$TMP/current-shim/npx"
+PATH="$TMP/current-shim:$TMP/real-first:$PATH" SKILLHERD_REAL_NPX='' \
   "$TEST_PYTHON" -c 'import subprocess, sys
 try:
     sys.exit(subprocess.run(sys.argv[1:], timeout=3).returncode)
@@ -482,7 +399,7 @@ except subprocess.TimeoutExpired:
     sys.exit(124)
 ' "$ROOT/bin/npx" --version > "$TMP/self-skip.out" 2>&1
 [ $? -eq 0 ] && [ "$(cat "$TMP/self-skip.out")" = $'raw\n<--version>' ] \
-  && ok "current and legacy wrappers on PATH skipped under timeout" || bad "wrapper self-skip failed"
+  && ok "wrapper copy on PATH skipped under timeout" || bad "wrapper self-skip failed"
 SKILLHERD_NPX_PKG=skills@2.0.0 shim_check "configured pin routes" $'managed\n<install>\n<repo>' skills@2.0.0 add repo
 skill_prefix=INJECTED shim_check "environment cannot inject managed prefix" $'managed\n<install>\n<repo>' skills add repo
 SKILLHERD_BIN="$TMP/skill-spy" SKILLHERD_REAL_NPX="$TMP/real-first/npx" "$ROOT/bin/npx" --dry-run skills add repo > "$TMP/npm-dry.out" 2> "$TMP/npm-dry.err"

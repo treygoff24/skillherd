@@ -118,12 +118,11 @@ pub enum Tier {
     None,
 }
 
-/// The machine axis: `mac` or `linux` (`cell` is a legacy input alias).
+/// The machine axis: `mac` or `linux`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Platform {
     Mac,
-    #[serde(alias = "cell")]
     Linux,
 }
 

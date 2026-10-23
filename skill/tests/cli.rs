@@ -236,7 +236,7 @@ fn invocations() -> Vec<Vec<&'static str>> {
             "--not",
             "grok",
             "--no-mac",
-            "--no-cell",
+            "--no-linux",
         ],
         vec!["off", "post"],
         vec!["add", "post"],

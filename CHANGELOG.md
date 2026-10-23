@@ -7,6 +7,32 @@ change the command line, the configuration or the library file formats.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
+### Fixed
+
+- `doctor` no longer reports a missing skill for a policy row excluded on
+  this machine's platform.
+
+### Changed
+
+- Replaced a timing-dependent concurrent-activation stress test with a
+  deterministic test of lock contention and retry. The test checks that a
+  waiting command reads policy after acquiring the lock and retains another
+  command's additions. No runtime fix is claimed for the intermittent test
+  failure, which was not reproduced during investigation.
+- Updated human and agent setup guides to preserve existing config and
+  skills, protect uninstall backups and parse library paths as JSON.
+- Rendered copies are refreshed once with the new render version.
+
+### Removed
+
+- Pre-release installer migration and old shim recognition. The installer
+  manages the current `skillherd` binary and its optional `npx` shim only.
+- The `legacy_config` doctor notice and the `cell` platform aliases. Use
+  `linux`, `!linux`, `--no-linux` and `linux-only` markers. Unknown marker
+  names are ordinary text; rename old markers before rendering.
+
 ## [0.1.0] - 2026-10-23
 
 First public release.

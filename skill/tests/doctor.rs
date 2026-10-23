@@ -1026,7 +1026,7 @@ fn capabilities_lists_every_code_and_the_exit_dictionary() {
         .iter()
         .map(|row| row["code"].as_str().unwrap().to_string())
         .collect();
-    assert_eq!(published.len(), 21, "{report}");
+    assert_eq!(published.len(), 20, "{report}");
     for code in [
         "inbox_unreconciled",
         "dangling_link",

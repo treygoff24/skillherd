@@ -86,21 +86,6 @@ impl Fixture {
             .count()
     }
 
-    /// The binary as a plain process, with this fixture's HOME and overrides, so
-    /// a test can run two of them at once.
-    fn spawn(&self, args: &[&str]) -> std::process::Child {
-        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_skillherd"));
-        cmd.env("HOME", self.home())
-            .args(args)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-        for key in OVERRIDES {
-            cmd.env_remove(key);
-        }
-        cmd.env("SKILLHERD_PLATFORM", "mac");
-        cmd.spawn().unwrap()
-    }
-
     fn write_harnesses(&self, text: &str) {
         fs::write(self.library().join(".globals/harnesses"), text).unwrap();
     }
@@ -607,97 +592,32 @@ fn on_tier_lane_writes_both_tokens_and_off_removes_the_row() {
     assert!(fixture.read_sets().contains("alpha main"));
 }
 
-/// `on` reads `sets` under the same lock it writes it with, so two calls that
-/// overlap cannot lose each other's row. Real processes against a real flock: the
-/// load-decide-save window a mock would not have is what is under test.
-///
-/// The fixture is shaped so the failure is not a matter of luck: the callers
-/// arrive a few milliseconds apart (the way two agents do) while the pool scan
-/// between a caller's read and its write takes far longer than that — pre-fix,
-/// the later caller's stale read is what overwrote the earlier caller's row.
+/// A contending `on` must refuse before reading policy; its retry loads the
+/// state the other writer published, rather than overwriting it from a snapshot.
 #[test]
-fn concurrent_on_calls_each_keep_their_row() {
+fn on_locks_before_reading_and_retry_keeps_the_latest_rows() {
     let fixture = Fixture::new();
     fixture.setup();
-    let names = [
-        "one", "two", "three", "four", "five", "six", "seven", "eight",
-    ];
-    for name in names {
-        fixture.write_skill(
-            name,
-            &format!("---\nname: {name}\ndescription: {name} does one thing\n---\n\nProse.\n"),
-        );
-    }
-    for index in 0..1000 {
-        fixture.write_skill(
-            &format!("filler{index}"),
-            "---\ndescription: filler\n---\n\nProse.\n",
-        );
-    }
+    let paths = skillherd::paths::Paths::fixture(fixture.home());
+    let guard = skillherd::lockfile::lock_library(&paths).unwrap();
+    let original = fixture.read_sets();
+    fixture.write_sets("invalid policy row !unknown\n");
 
-    for round in 0..2 {
-        let mut children: Vec<(&str, std::process::Child)> = Vec::new();
-        for name in names {
-            children.push((name, fixture.spawn(&["on", name])));
-            // The callers arrive a few milliseconds apart, the way two agents do.
-            // The pool scan is what they overlap, and it is what a pre-lock read
-            // of `sets` used to leave stale.
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
+    // Invalid policy makes the ordering observable without timing or a large
+    // fixture: a premature read reports a parse error instead of contention.
+    let (exit, error) = fixture.error(&["on", "alpha", "--tier", "lane"]);
+    assert_eq!(exit, 75, "{error}");
+    assert_eq!(error["code"], "library_busy");
+    assert_eq!(fixture.read_sets(), "invalid policy row !unknown\n");
 
-        let mut succeeded: Vec<&str> = Vec::new();
-        let mut busy: Vec<&str> = Vec::new();
-        for (name, child) in children {
-            let output = child.wait_with_output().unwrap();
-            match output.status.code() {
-                Some(0) => succeeded.push(name),
-                // `library_busy` is retryable: the loser re-runs until the lock
-                // is free, and then its row lands too.
-                Some(75) => busy.push(name),
-                other => panic!(
-                    "round {round}: `on {name}` exited {other:?}: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                ),
-            }
-        }
-
-        for name in &busy {
-            for attempt in 1..=50 {
-                let again = fixture.run(&["on", name]);
-                match again.status.code() {
-                    Some(0) => break,
-                    Some(75) if attempt < 50 => {
-                        std::thread::sleep(std::time::Duration::from_millis(20));
-                    }
-                    other => panic!(
-                        "round {round}: retrying `on {name}` exited {other:?}: {}",
-                        String::from_utf8_lossy(&again.stderr)
-                    ),
-                }
-            }
-        }
-
-        // Judged once every writer of the round has settled: a caller that
-        // reported success read, decided and wrote under the lock, so its row is
-        // the file's state, not just its own.
-        for name in succeeded {
-            assert_eq!(
-                fixture.row_lines(name),
-                1,
-                "round {round}: `on {name}` reported success, so its row must be in sets: {}",
-                fixture.read_sets()
-            );
-        }
-    }
-
-    for name in names {
-        assert_eq!(
-            fixture.row_lines(name),
-            1,
-            "every concurrent name has exactly one row: {}",
-            fixture.read_sets()
-        );
-    }
+    // Simulate the lock holder publishing a new row before the refused caller
+    // retries. That row must survive the next successful update.
+    fixture.write_sets(&format!("{original}delta main\n"));
+    drop(guard);
+    fixture.data(&["on", "alpha", "--tier", "lane"]);
+    assert_eq!(fixture.row_lines("delta"), 1);
+    assert_eq!(fixture.row_lines("alpha"), 1);
+    assert!(fixture.read_sets().contains("alpha main lane"));
 }
 
 /// `remove` takes the library lock before it reads anything mutable: with the

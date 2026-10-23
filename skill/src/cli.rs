@@ -197,8 +197,8 @@ pub struct OnArgs {
     #[arg(long, default_value_t = false)]
     pub no_mac: bool,
 
-    /// Mark the row `!linux` (`--no-cell` is a legacy alias).
-    #[arg(long = "no-linux", alias = "no-cell", default_value_t = false)]
+    /// Mark the row `!linux`.
+    #[arg(long = "no-linux", default_value_t = false)]
     pub no_linux: bool,
 }
 
@@ -429,7 +429,7 @@ mod tests {
             "--not",
             "grok",
             "--no-mac",
-            "--no-cell",
+            "--no-linux",
             "--dry-run",
             "--pretty",
         ]);

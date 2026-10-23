@@ -68,35 +68,24 @@ done
 PREFIX=${PREFIX:-$ROOT/.local}
 
 # A content receipt recognizes an earlier publication without executing the
-# destination (in particular, never probe procps' process-signalling skill).
+# destination.
 # cksum is POSIX; the receipt is an accidental-overwrite guard, not protection
 # against someone who can already rewrite this user's installation directory.
 owned_tool() {
-  local candidate="$1" src="$2" name="$3" receipt base family saw_receipt=0
+  local candidate="$1" src="$2" name="$3" receipt base
   [ -f "$candidate" ] && [ ! -L "$candidate" ] || return 1
   if [ -f "$src" ] && cmp -s "$src" "$candidate"; then return 0; fi
   base="$(dirname "$(dirname "$candidate")")"
-  for family in skillherd skill-cli; do
-    receipt="$base/share/$family/installed-$name.cksum"
-    if [ -e "$receipt" ] || [ -L "$receipt" ]; then
-      [ ! -L "$base/share" ] && [ ! -L "$base/share/$family" ] \
-        && [ -f "$receipt" ] && [ ! -L "$receipt" ] || return 1
-      saw_receipt=1
-      [ "$(cksum < "$candidate")" = "$(cat "$receipt")" ] && return 0
-    fi
-  done
-  # A receipt mismatch is a local edit, not a legacy installation.
-  # Known legacy npx bytes may replace a receipt-backed current shim.
-  [ "$saw_receipt" -eq 0 ] || [ "$name" = npx ] || return 1
-  case "$name" in
-    # Old skill executables require receipts; a help phrase is not deletion proof.
-    skill) return 1 ;;
-    # Exact versioned self markers and frozen receipt-less release checksums.
-    npx) if [ "$saw_receipt" -eq 0 ] && LC_ALL=C grep -a -x -q -e '# skillherd-npx-shim: 1' -e '# skill-cli-npx-shim: 1' "$candidate"; then return 0; fi
-      case "$(cksum < "$candidate")" in '3516060573 3627'|'2488732261 4495') return 0 ;; *) return 1 ;; esac ;;
-    skill-render) [ "$(cksum < "$candidate")" = '2222305786 28609' ] ;;
-    *) return 1 ;;
-  esac
+  receipt="$base/share/skillherd/installed-$name.cksum"
+  if [ -e "$receipt" ] || [ -L "$receipt" ]; then
+    # A receipt mismatch is a local edit: never assume ownership past it.
+    [ ! -L "$base/share" ] && [ ! -L "$base/share/skillherd" ] \
+      && [ -f "$receipt" ] && [ ! -L "$receipt" ] || return 1
+    [ "$(cksum < "$candidate")" = "$(cat "$receipt")" ]
+    return
+  fi
+  # Without a receipt only the wrapper's exact self marker proves ownership.
+  [ "$name" = npx ] && LC_ALL=C grep -a -x -q -e '# skillherd-npx-shim: 1' "$candidate"
 }
 check_tool() {
   local name="$1" src="$2" dst="$PREFIX/bin/$1" found remaining dir
@@ -127,7 +116,6 @@ check_receipts() {
   local item
   for item in "$PREFIX/share" "$PREFIX/share/skillherd" \
     "$PREFIX/share/skillherd/installed-skillherd.cksum" \
-    "$PREFIX/share/skillherd/installed-skill-render.cksum" \
     "$PREFIX/share/skillherd/installed-npx.cksum"; do
     if [ -L "$item" ]; then
       echo "install.sh: refusing symlinked receipt path: $item" >&2
@@ -140,7 +128,7 @@ save_receipt() {
   check_receipts
   [ "$VERIFY" -eq 0 ] || return 0
   case "$dst" in
-    "$PREFIX/bin/skillherd"|"$PREFIX/bin/skill-render"|"$PREFIX/bin/npx")
+    "$PREFIX/bin/skillherd"|"$PREFIX/bin/npx")
       mkdir -p "$PREFIX/share/skillherd"
       tmp=$(mktemp "$PREFIX/share/skillherd/.receipt.XXXXXX")
       cksum < "$dst" > "$tmp"
@@ -177,7 +165,7 @@ put() {  # put SRC DST
   # Recheck at publication too, after the build and any earlier copies.
   case "$dst" in
     "$PREFIX/bin/npx") check_npx_destination ;;
-    "$PREFIX/bin/skillherd"|"$PREFIX/bin/skill-render") check_tool "${dst##*/}" "$src" ;;
+    "$PREFIX/bin/skillherd") check_tool skillherd "$src" ;;
   esac
   if [ -f "$dst" ] && [ ! -L "$dst" ] && cmp -s "$src" "$dst"; then
     save_receipt "$dst"
@@ -231,16 +219,11 @@ check_npx_destination
 build_skill
 check_receipts
 check_tool skillherd "$SKILLHERD_BUILT"
-if [ -f "$HERE/bin/skill-render" ]; then check_tool skill-render "$HERE/bin/skill-render"; fi
 put "$SKILLHERD_BUILT" "$PREFIX/bin/skillherd"
-remove_owned skill '' 'renamed to skillherd'
 if [ "$WITH_NPX" -eq 1 ]; then
   put "$NPX_SRC" "$PREFIX/bin/npx"
 else
-  remove_owned npx "$NPX_SRC" 'now opt-in; rerun with --with-npx-shim to keep it'
-fi
-if [ ! -f "$HERE/bin/skill-render" ]; then
-  remove_owned skill-render '' 'retired; rendering is built into skillherd'
+  remove_owned npx "$NPX_SRC" 'not requested; rerun with --with-npx-shim to keep it'
 fi
 
 PLATFORM=${SKILLHERD_CLI_PLATFORM:-$(uname -s | tr '[:upper:]' '[:lower:]')}

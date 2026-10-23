@@ -159,7 +159,9 @@ Platform markers are `mac` and `linux`. Harness markers are `claude`, `codex`,
 `grok`, `pi`, `cursor` and `lane`; a harness block is kept only on a folder
 whose variant key has that name. In the default table those keys are
 `claude`, `codex`, `pi` and `cursor`; the shared folder and Grok have none, so
-they get the text with every harness block removed.
+they get the text with every harness block removed. Only these platform and
+harness names define markers; any other `<!-- x-only -->` line is ordinary
+text, including the retired `cell-only` spelling.
 
 Each marker sits on a line of its own. A platform block and a harness block
 may nest one inside the other, one level deep; a second block of the same
@@ -271,6 +273,10 @@ failed), `77` GitHub authentication failed, `78` configuration error.
 `doctor` has its own: `0` no warnings (informational findings do not count),
 `1` warnings remain, `2` some fixes failed, `3` every fix failed, `4` refused
 because a fix path is outside your home folder. `skillherd doctor --capabilities` lists every finding code.
+
+`policy_name_missing` means an applicable policy row names a skill absent
+from the library. A row that excludes the current platform is skipped; it
+can refer to a skill present only on another machine.
 
 ## Glossary
 

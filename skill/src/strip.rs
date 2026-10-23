@@ -8,7 +8,6 @@
 //! ```text
 //! <!-- mac-only -->    ...  <!-- /mac-only -->
 //! <!-- linux-only -->  ...  <!-- /linux-only -->
-//! <!-- cell-only -->   ...  <!-- /cell-only --> (legacy Linux alias)
 //! <!-- claude-only --> ...  <!-- /claude-only -->
 //! ```
 //!
@@ -37,11 +36,12 @@ use crate::model::Platform;
 /// Bumped whenever the served bytes for an unchanged source can change: it is
 /// a freshness key in every served copy's record. 3: the copy follows a link
 /// only when it stays inside the skill or the library. 4: recognize `linux`
-/// machine fences and retain `cell` as a legacy Linux alias.
-pub const RENDER_VERSION: u64 = 4;
+/// machine fences. 5: `cell` is no longer a machine name, so its fence is
+/// ordinary text.
+pub const RENDER_VERSION: u64 = 5;
 
 /// The machine names a marker may carry.
-pub const MACHINE_NAMES: [&str; 3] = ["mac", "linux", "cell"];
+pub const MACHINE_NAMES: [&str; 2] = ["mac", "linux"];
 
 /// The harness names a marker may carry. A surface whose harness key is not
 /// one of these keeps no harness block, like a shared surface.
@@ -190,7 +190,7 @@ fn lines(data: &[u8]) -> Vec<&[u8]> {
 
 fn block_is_kept(axis: Axis, name: &str, keep: Platform, harness: Option<&str>) -> bool {
     match axis {
-        Axis::Machine => name == keep.to_string() || (name == "cell" && keep == Platform::Linux),
+        Axis::Machine => name == keep.to_string(),
         Axis::Harness => harness == Some(name),
     }
 }

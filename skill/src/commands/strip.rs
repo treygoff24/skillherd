@@ -52,7 +52,7 @@ struct Planned {
 pub fn run(args: &StripArgs, dry_run: bool) -> Result<Value> {
     let keep = match args.keep.as_str() {
         "mac" => Platform::Mac,
-        "linux" | "cell" => Platform::Linux,
+        "linux" => Platform::Linux,
         other => return Err(Error::usage(format!("unknown --keep {other:?}"))),
     };
     let harness = args.harness.as_deref();

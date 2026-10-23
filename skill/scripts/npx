@@ -12,12 +12,8 @@ SKILLHERD_BIN="${SKILLHERD_BIN:-skillherd}"
 usable_npx() {
   local candidate="$1"
   [ -f "$candidate" ] && [ -x "$candidate" ] || return 1
-  # Recognize both current and legacy copies, including at custom prefixes.
-  if head -c 256 "$candidate" | grep -F -x -q \
-    -e '# skillherd-npx-shim: 1' \
-    -e '# skill-cli-npx-shim: 1' \
-    -e '# npx — wrapper around the real npx so a pasted skills.sh command lands in the' \
-    -e '# npx — optional wrapper around the real npx. Also embedded by `skill npx`.'; then return 1; fi
+  # Skip any copy of this wrapper, including at custom prefixes.
+  if head -c 256 "$candidate" | grep -F -x -q -e '# skillherd-npx-shim: 1'; then return 1; fi
   return 0
 }
 real_npx() {
