@@ -86,9 +86,9 @@ case "$verb" in
   add|install|i|a) verb=install ;;
   update|upgrade) verb=update ;;
   remove|rm|uninstall) verb=remove ;;
-  *) refuse "unsupported skills command ${verb}; use skill install/update/remove directly" ;;
+  *) refuse "unsupported skills command ${verb}; use skillherd install/update/remove directly" ;;
 esac
-[ "${npx_dry_run:-0}" -eq 0 ] || refuse 'put skill --dry-run before npx for managed skills mutations'
+[ "${npx_dry_run:-0}" -eq 0 ] || refuse 'put skillherd --dry-run before npx for managed skills mutations'
 # The managed importer pins its package; never silently discard a requested version.
 managed_package="${SKILLHERD_NPX_PKG:-skills@1.7.0}"
 case "$package" in
@@ -117,7 +117,7 @@ for ((k = sub_at + 1; k < n; k++)); do
     -s=*|--skill=*)
       [ -n "${tok#*=}" ] || refuse "$tok requires a value"
       rewritten+=(--skill "${tok#*=}") ;;
-    -*) refuse "unsupported flag $tok; use skill install/update/remove directly" ;;
+    -*) refuse "unsupported flag $tok; use skillherd install/update/remove directly" ;;
     *) rewritten+=("$tok") ;;
   esac
 done

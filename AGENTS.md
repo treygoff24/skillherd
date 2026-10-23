@@ -6,15 +6,21 @@ Instructions for anyone changing this repository, human or coding agent.
 ## What is here
 
 - `skill/`: the `skillherd` CLI, a Rust crate (edition 2024, Rust 1.88 or newer).
-  The binary is `skillherd`; integration tests are in `skill/tests/`, with shell
+  The binary is `skillherd`; integration tests are in `skill/tests/`, with
   fixtures (stub `npx` and `gh`, a local upstream builder, and stripper
-  fixtures recorded from the old Python stripper) in `skill/tests/fixtures/`.
+  expectations) in `skill/tests/fixtures/`. The stripper expectations were
+  recorded from an earlier Python implementation that is not part of this
+  repository: treat them as frozen, and change one only with a reason.
 - `install.sh`: builds the crate and copies the binary into a prefix.
 - `skill/scripts/npx`: the `npx` shim script. `skillherd npx` embeds it at build
   time; `bin/npx` is a link to it, and `install.sh --with-npx-shim` installs
   it as an optional `npx` wrapper.
 - `scripts/third-party-notices.sh`: regenerates `THIRD-PARTY-NOTICES`.
 - `tests/`: the gate, the end-to-end acceptance script and the shell suites.
+- `skills/skillherd/SKILL.md`: a skill that teaches an agent to use the CLI.
+- Documentation: `README.md` (users), `docs/reference.md` (every setting and
+  file format), `docs/agent-setup.md` (agents installing the tool for a user),
+  `ARCHITECTURE.md` (how it works), `CHANGELOG.md`.
 
 Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing anything that writes
 to disk. Its three sections (the managed-entry rule, the replace protocol and
@@ -39,7 +45,7 @@ the render algorithm) describe the behaviour every change must keep.
   variables and the user's Git and npm config are passed only with
   `SKILLHERD_NPX_CREDENTIALS=1`. This is redirection, not a sandbox: do not
   describe it as isolation, and do not widen what reaches the child without
-  saying so in `README.md`.
+  saying so in `README.md` and `docs/reference.md`.
 - **Only the stage is an inbox.** Imports read only marked run folders under
   the stage (`npx::recoverable_inboxes`). `~/.agents/skills` is a surface; never
   scan it for arrivals. An arrival that was refused or interrupted is kept
@@ -65,6 +71,11 @@ bash tests/shell-check.sh            # bash -n and shellcheck on every script
 
 Run one Rust suite while iterating with
 `cargo test --manifest-path skill/Cargo.toml --test reconcile`.
+`tests/acceptance.sh` runs `skill/target/release/skillherd`, so build it first
+(the gate does; otherwise `cargo build --release --manifest-path
+skill/Cargo.toml`, with `CARGO_TARGET_DIR` unset). CI runs all of the above on
+macOS and Linux, plus a build on Rust 1.88 and a check that
+`THIRD-PARTY-NOTICES` is current.
 
 The test scripts need `python3`, `git`, `shasum` and, for the shell checks,
 `shellcheck`. The tool itself needs none of Python or shellcheck.
@@ -86,8 +97,11 @@ The test scripts need `python3`, `git`, `shasum` and, for the shell checks,
 - Shell changes pass `bash tests/shell-check.sh`.
 - Changes to the crate pass `tests/skill-gate.sh`. Changes to what the tool
   writes, imports or serves also pass `SKIP_GATE=1 tests/acceptance.sh`.
-- Update `README.md` when user-visible behaviour changes, and
-  `ARCHITECTURE.md` when one of its three rules changes.
+- Update the documentation when user-visible behaviour changes: `README.md`
+  and `docs/reference.md` for users, `docs/agent-setup.md` and
+  `skills/skillherd/SKILL.md` when a command, default or safety rule an agent
+  relies on changes, and `ARCHITECTURE.md` when one of its three rules
+  changes. Add a line to `CHANGELOG.md` under `Unreleased`.
 - When dependencies change, regenerate the license file with
   `bash scripts/third-party-notices.sh > THIRD-PARTY-NOTICES`; CI fails when
   it is out of date.

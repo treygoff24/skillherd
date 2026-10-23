@@ -1,6 +1,9 @@
 """Regenerate expected.json from the Python stripper this port replaced.
 
-    git show e7b1a16^:bin/skill-render > "$TMPDIR/skill_render.py"
+That Python implementation predates this repository and is not part of it,
+so expected.json is a frozen record. With a copy of it saved as
+"$TMPDIR/skill_render.py":
+
     python3 -I skill/tests/fixtures/strip/bytes/generate.py "$TMPDIR/skill_render.py"
 
 Each `*.md` file here is an input, read as raw bytes (BOMs, invalid UTF-8,

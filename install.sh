@@ -42,10 +42,10 @@ Build and install skillherd and its helpers (requires Cargo and a C linker).
                     Allow a foreign skillherd elsewhere on PATH (compatibility).
   -h, --help        Print this usage.
 
-The wrapper redirects supported skills mutations through the managed importer.
-Without it, use skillherd npx <args> explicitly. Reinstalling without the flag removes
-an owned npx wrapper, including the old default wrapper. Foreign files stay put.
-Upgrades remove installer-owned copies of the old skill command, never foreign ones.
+The wrapper sends pasted `npx skills add|update|remove` commands through
+skillherd. Without it, use `skillherd npx <args>` explicitly. Reinstalling
+without the flag removes a wrapper this installer put there; files it did not
+install are never touched.
 Build artifacts remain in Cargo's target directory for faster repeat installs.
 To reclaim the cache: cargo clean --manifest-path skill/Cargo.toml
 EOF

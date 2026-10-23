@@ -90,9 +90,7 @@ before it has a replacement in place:
 6. **Clean up.** Only after the commit, delete the backup this run made, in
    this process, then the inbox copy. A run folder is removed only once its
    inbox is empty. With `SKILLHERD_SNAPSHOT_LOCK=1`, the live lock is then copied
-   to `.npx/skill-lock.<platform>.json` and committed. New Linux snapshots
-   use `linux`; a legacy `cell` snapshot is read only if the `linux` file is
-   absent.
+   to `.npx/skill-lock.<platform>.json` and committed.
 
 An arrival the batch refused, or one a crash left behind, is never discarded
 implicitly: its run folder stays, a later run's stale-stage cleanup skips any
